@@ -1,4 +1,10 @@
-Numpy
+##National Taiwan Ocean University
+##Department of Harbor and River Engineering
+##Instructor: Dr. Yuan-Fong Su
+
+###Python for Data Analysis in Engineer
+####Basic usage of Python. Part 4.
+#####Numpy
 
 
 ```python
