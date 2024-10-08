@@ -1,4 +1,2 @@
 title: [Laboratory for Hydrology and Remote Sensing of Environment](https://yuanfongsu.github.io)
 remote_theme: minimal-mistakes-jekyll
-plugins:
-- jekyll-remote-theme # add this line to the plugins list if you already have one
