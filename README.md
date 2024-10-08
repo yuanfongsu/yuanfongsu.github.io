@@ -5,8 +5,12 @@
 ## Course: (1131) Python for Data Analysis in Engineer
 
 ### Basic usage of Python. Part 4.
-### Numpy
-
-##
+### Conditional Excution
 <br>
-</br>
+### Basic usage of Python. Part 4.
+[Numpy](https://yuanfongsu.github.io/DM_MNIST_Classification.html)
+<br>
+
+
+
+
