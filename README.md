@@ -3,8 +3,7 @@
 ### Dr. Yuan-Fong Su
 <br>
 # Courses
-### Python for data analysis in Engineer
-[Python](https://yuanfongsu.github.io/python.html)
+### Python for data analysis in Engineer [Python](https://yuanfongsu.github.io/python.html)
 <br>
 
 
