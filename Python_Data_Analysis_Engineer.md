@@ -13,7 +13,7 @@
 [Data structure]
 
 ### Week 3
-[Conditional Excution]
+[Conditional Excution](https://yuanfongsu.github.io/Python_Class_04_Conditional_Execution_and_Iteration.html)
 <br>
 ### Week 4
 Basic of Python Part 4. [Numpy](https://yuanfongsu.github.io/DM_MNIST_Classification.html)
