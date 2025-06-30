@@ -1,0 +1,100 @@
+
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>電腦視覺好好玩 - AI影像辨識科普活動</title>
+    <style>
+        body {
+            font-family: "Noto Sans TC", sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f8fb;
+            color: #333;
+        }
+        header {
+            background-color: #2c3e50;
+            color: white;
+            padding: 1em;
+            text-align: center;
+        }
+        main {
+            padding: 2em;
+            max-width: 900px;
+            margin: auto;
+        }
+        h1 {
+            color: #2c3e50;
+        }
+        .section {
+            margin-bottom: 2em;
+        }
+        footer {
+            text-align: center;
+            font-size: 0.9em;
+            color: #888;
+            margin-top: 4em;
+            padding: 1em 0;
+        }
+        .counter {
+            background: #e1f5fe;
+            padding: 1em;
+            margin-top: 2em;
+            border-left: 5px solid #03a9f4;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>電腦視覺好好玩</h1>
+        <p>AI影像辨識動手學科學營</p>
+    </header>
+    <main>
+        <div class="section">
+            <h2>活動簡介</h2>
+            <p>本活動由國立臺灣海洋大學蘇元風老師主辦，旨在推廣 AI 電腦視覺技術給國小、國中學生與教師，透過教師研習營、工作坊與親子互動科學營，讓學員能親自動手訓練 AI 模型並製作互動遊戲。</p>
+        </div>
+        <div class="section">
+            <h2>活動內容</h2>
+            <ul>
+                <li>教師研習營：介紹 AI 電腦視覺理論與實作工具（如 Teachable Machine、Roboflow）</li>
+                <li>動手玩 AI 工作坊：帶領學生製作互動小遊戲</li>
+                <li>親子互動 AI 科學營：親子合作訓練模型、開發簡單遊戲</li>
+                <li>AI互動遊戲推廣網頁：提供學習影片、教案與資源下載</li>
+            </ul>
+        </div>
+        <div class="counter">
+            本頁目前瀏覽次數：<span id="visit-count">讀取中...</span>
+        </div>
+    </main>
+    <footer>
+        © 2025 國立臺灣海洋大學 河海工程學系 ｜ 蘇元風 助理教授
+    </footer>
+
+    <!-- Firebase SDK (留待用戶補上金鑰設定) -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
+    <script>
+        const firebaseConfig = {
+            apiKey: "你的API金鑰",
+            authDomain: "你的專案.firebaseapp.com",
+            databaseURL: "https://你的專案.firebaseio.com",
+            projectId: "你的專案ID",
+            storageBucket: "你的專案.appspot.com",
+            messagingSenderId: "你的發送者ID",
+            appId: "你的AppID"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+        const counterRef = db.ref('visitCount');
+
+        counterRef.transaction(current => (current || 0) + 1);
+
+        counterRef.on('value', snapshot => {
+            document.getElementById('visit-count').innerText = snapshot.val();
+        });
+    </script>
+</body>
+</html>
