@@ -1,0 +1,769 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Random Picker (Students + Numbers)</title>
+  <style>
+    :root{
+      --bg:#0b1220; --text:#eaf0ff; --muted:#a9b7d6;
+      --accent:#7c5cff; --accent2:#2ee6a6; --danger:#ff4d6d;
+      --ring:rgba(124,92,255,.35); --shadow:0 18px 60px rgba(0,0,0,.35);
+      --radius:18px;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Noto Sans";
+      background: radial-gradient(1200px 700px at 20% 10%, rgba(124,92,255,.25), transparent 55%),
+                  radial-gradient(900px 600px at 80% 30%, rgba(46,230,166,.18), transparent 60%),
+                  linear-gradient(180deg, #070b14, var(--bg));
+      color:var(--text);
+      min-height:100vh;
+    }
+    .wrap{max-width:1100px;margin:0 auto;padding:26px 16px 40px;}
+    header{display:flex;justify-content:space-between;gap:16px;align-items:flex-end;margin-bottom:18px;}
+    h1{font-size:clamp(22px,3vw,34px);margin:0;letter-spacing:.2px;}
+    .sub{margin:6px 0 0;color:var(--muted);font-size:14px;line-height:1.4;}
+    .grid{display:grid;grid-template-columns:1.15fr .85fr;gap:16px;}
+    @media (max-width: 920px){.grid{grid-template-columns:1fr;}}
+    .card{
+      background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
+      border: 1px solid rgba(255,255,255,.10);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow:hidden;
+    }
+    .head{
+      padding:14px 16px;border-bottom:1px solid rgba(255,255,255,.10);
+      display:flex;align-items:center;justify-content:space-between;gap:12px;
+      background: linear-gradient(180deg, rgba(15,27,51,.55), rgba(12,23,46,.20));
+    }
+    .head h2{margin:0;font-size:15px;letter-spacing:.2px;}
+    .body{padding:16px;}
+    label{display:block;font-size:12px;color:var(--muted);margin-bottom:8px;letter-spacing:.2px;}
+    textarea{
+      width:100%;min-height: 210px;resize: vertical;border-radius: 14px;
+      border: 1px solid rgba(255,255,255,.12);background: rgba(7,10,18,.45);
+      color: var(--text);padding:12px;outline:none;line-height:1.5;font-size:14px;
+      box-shadow: inset 0 0 0 1px rgba(0,0,0,.15);
+    }
+    textarea:focus{border-color: rgba(124,92,255,.55);box-shadow: 0 0 0 4px var(--ring);}
+    .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:12px;}
+    .btn{
+      appearance:none;border:1px solid rgba(255,255,255,.12);
+      background: rgba(255,255,255,.06);color: var(--text);
+      padding:10px 12px;border-radius: 14px;cursor:pointer;user-select:none;
+      transition: transform .06s ease, background .15s ease, border-color .15s ease;
+      font-weight:600;font-size:13px;display:inline-flex;align-items:center;justify-content:center;gap:8px;
+    }
+    .btn:hover{ background: rgba(255,255,255,.095); border-color: rgba(255,255,255,.18); }
+    .btn:active{ transform: translateY(1px); }
+    .btn.primary{
+      background: linear-gradient(135deg, rgba(124,92,255,.95), rgba(124,92,255,.62));
+      border-color: rgba(124,92,255,.45);
+    }
+    .btn.primary:hover{ background: linear-gradient(135deg, rgba(124,92,255,1), rgba(124,92,255,.72)); }
+    .btn.good{
+      background: linear-gradient(135deg, rgba(46,230,166,.95), rgba(46,230,166,.55));
+      border-color: rgba(46,230,166,.45);
+      color:#061315;
+    }
+    .btn.danger{background: rgba(255,77,109,.12);border-color: rgba(255,77,109,.35);color:#ffd7df;}
+    .pill{
+      display:inline-flex;align-items:center;gap:8px;padding:7px 10px;border-radius:999px;
+      border:1px solid rgba(255,255,255,.12);background: rgba(255,255,255,.05);
+      color: var(--muted);font-size:12px;
+    }
+    .toggle{
+      display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:14px;
+      border:1px solid rgba(255,255,255,.12);background: rgba(255,255,255,.04);
+    }
+    .toggle input{ width:18px; height:18px; }
+    .muted{ color: var(--muted); font-size:12px; }
+    .stage{text-align:center;padding:22px 16px 12px;}
+    .big{
+      margin:18px auto 8px;width:min(520px, 100%);padding:20px 18px;border-radius: 24px;
+      background: linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.03));
+      border: 1px solid rgba(255,255,255,.12);box-shadow: 0 18px 60px rgba(0,0,0,.32);
+    }
+    .picked{font-size: clamp(26px, 4vw, 44px);font-weight:900;letter-spacing:.3px;margin:4px 0 2px;line-height:1.1;}
+    .hint{margin:0;color: var(--muted);font-size:13px;}
+    .roulette{min-height: 28px;margin-top:10px;color: rgba(234,240,255,.85);font-weight:700;letter-spacing:.2px;opacity:.95;}
+    .history{display:flex;flex-direction:column;gap:10px;max-height: 320px;overflow:auto;padding-right:6px;}
+    .hist-item{
+      padding:10px 12px;border-radius: 14px;border: 1px solid rgba(255,255,255,.10);
+      background: rgba(7,10,18,.35);display:flex;justify-content:space-between;align-items:center;gap:10px;
+    }
+    .hist-item .name{ font-weight:800; }
+    .hist-item .time{ color: var(--muted); font-size:12px; white-space:nowrap; }
+    .footer-note{margin-top:14px;color: var(--muted);font-size:12px;line-height:1.4;}
+    .kbd{
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      font-size: 12px;padding:2px 6px;border-radius: 8px;border: 1px solid rgba(255,255,255,.14);
+      background: rgba(255,255,255,.06);color: rgba(234,240,255,.9);
+    }
+    .tabs{display:flex;gap:10px;flex-wrap:wrap;}
+    .tab{
+      padding:8px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.14);
+      background: rgba(255,255,255,.05);cursor:pointer;font-weight:800;font-size:12px;color:var(--muted);
+    }
+    .tab.active{
+      color:var(--text);
+      border-color: rgba(124,92,255,.45);
+      background: rgba(124,92,255,.18);
+    }
+    .fieldrow{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;}
+    input[type="number"]{
+      width:160px; max-width: 45vw;
+      border-radius: 14px;border:1px solid rgba(255,255,255,.12);
+      background: rgba(7,10,18,.45);color: var(--text);
+      padding:10px 12px;outline:none;font-size:14px;
+    }
+    input[type="number"]:focus{border-color: rgba(124,92,255,.55); box-shadow: 0 0 0 4px var(--ring);}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div>
+        <h1>Random Picker</h1>
+        <p class="sub">
+          Switch between <span class="kbd">Students</span> and <span class="kbd">Numbers</span>.
+          Press <span class="kbd">Space</span>/<span class="kbd">Enter</span> to “Pick + Count”.
+        </p>
+      </div>
+      <div class="pill" id="statusPill">Ready</div>
+    </header>
+
+    <div class="grid">
+      <!-- Left: Config -->
+      <section class="card">
+        <div class="head">
+          <h2>Setup</h2>
+          <button class="btn danger" id="clearAllBtn" type="button">Clear</button>
+        </div>
+        <div class="body">
+          <div class="tabs" role="tablist" aria-label="Mode">
+            <button class="tab active" id="tabStudents" role="tab" aria-selected="true" type="button">👥 Students</button>
+            <button class="tab" id="tabNumbers" role="tab" aria-selected="false" type="button">🔢 Numbers</button>
+          </div>
+
+          <!-- Students panel -->
+          <div id="panelStudents" style="margin-top:14px;">
+            <label for="studentsInput">Student list (one per line)</label>
+            <textarea id="studentsInput" placeholder="Example:
+Bo-Rui
+Alicia
+Kevin"></textarea>
+
+            <div class="row">
+              <div class="toggle" title="If enabled, no one repeats until the round finishes.">
+                <input id="noRepeatStudents" type="checkbox" />
+                <div>
+                  <div style="font-weight:800; font-size:13px;">No repeats (students)</div>
+                  <div class="muted">Fair mode for participation</div>
+                </div>
+              </div>
+
+              <button class="btn" id="resetStudentsRoundBtn" type="button">Reset student round</button>
+              <button class="btn" id="copyListBtn" type="button">Copy cleaned list</button>
+            </div>
+
+            <p class="footer-note">Names are auto-saved in this browser.</p>
+          </div>
+
+          <!-- Numbers panel -->
+          <div id="panelNumbers" style="margin-top:14px; display:none;">
+            <label>Number range</label>
+            <div class="fieldrow">
+              <div>
+                <label for="rangeMin">Min</label>
+                <input id="rangeMin" type="number" step="1" value="1" />
+              </div>
+              <div>
+                <label for="rangeMax">Max</label>
+                <input id="rangeMax" type="number" step="1" value="50" />
+              </div>
+            </div>
+
+            <div class="row">
+              <div class="toggle" title="If enabled, numbers won’t repeat until the range is exhausted.">
+                <input id="noRepeatNumbers" type="checkbox" />
+                <div>
+                  <div style="font-weight:800; font-size:13px;">No repeats (numbers)</div>
+                  <div class="muted">Useful for quiz questions</div>
+                </div>
+              </div>
+
+              <button class="btn" id="resetNumbersRoundBtn" type="button">Reset number round</button>
+            </div>
+
+            <p class="footer-note">
+              Tip: Set <span class="kbd">1</span> to <span class="kbd">50</span> (or any integers). If Min &gt; Max, we swap them.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Right: Picker + History -->
+      <section class="card">
+        <div class="head">
+          <h2>Picker</h2>
+          <button class="btn" id="clearHistoryBtn" type="button">Clear history</button>
+        </div>
+
+        <div class="stage">
+          <div class="pill" id="roundPill">—</div>
+
+          <div class="big" role="status" aria-live="polite" aria-atomic="true">
+            <div class="roulette" id="rouletteText">&nbsp;</div>
+            <div class="picked" id="pickedValue">—</div>
+            <p class="hint" id="pickedHint">Pick a student or number.</p>
+
+            <div class="row" style="justify-content:center; margin-top:16px;">
+              <button class="btn primary" id="pickBtn" type="button">🎲 Pick</button>
+              <button class="btn good" id="pickAndCountBtn" type="button">✅ Pick + Count</button>
+            </div>
+
+            <div class="row" style="justify-content:center; margin-top:10px;">
+              <button class="btn" id="undoBtn" type="button">↩ Undo last</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="body">
+          <label>History</label>
+          <div class="history" id="history"></div>
+          <p class="footer-note">History shows 🎲 (preview) and ✅ (counted).</p>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <script>
+    "use strict";
+
+    // ---------- Helpers ----------
+    const $ = (id) => document.getElementById(id);
+    const nowTime = () => new Date().toLocaleTimeString([], {hour:"2-digit", minute:"2-digit"});
+    const uniq = (arr) => Array.from(new Set(arr));
+    const cleanList = (raw) => uniq(raw.split(/\\r?\\n/g).map(s=>s.trim()).filter(Boolean));
+    function shuffle(arr){
+      const a = arr.slice();
+      for (let i = a.length - 1; i > 0; i--){
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+      }
+      return a;
+    }
+    const clampInt = (n) => Number.isFinite(n) ? Math.trunc(n) : 0;
+
+    // ---------- State ----------
+    const STORAGE_KEY = "random-picker:v2";
+    const state = {
+      mode: "students", // "students" | "numbers"
+      // students
+      students: [],
+      noRepeatStudents: false,
+      studentsPool: [],
+      // numbers
+      rangeMin: 1,
+      rangeMax: 50,
+      noRepeatNumbers: false,
+      numbersPool: [],
+      // history
+      // item: {mode, value, time, counted}
+      history: []
+    };
+
+    // ---------- Elements ----------
+    const statusPill = $("statusPill");
+    const roundPill = $("roundPill");
+    const rouletteText = $("rouletteText");
+    const pickedValue = $("pickedValue");
+    const pickedHint = $("pickedHint");
+    const historyEl = $("history");
+
+    const tabStudents = $("tabStudents");
+    const tabNumbers = $("tabNumbers");
+    const panelStudents = $("panelStudents");
+    const panelNumbers = $("panelNumbers");
+
+    const studentsInput = $("studentsInput");
+    const noRepeatStudents = $("noRepeatStudents");
+    const resetStudentsRoundBtn = $("resetStudentsRoundBtn");
+    const copyListBtn = $("copyListBtn");
+
+    const rangeMin = $("rangeMin");
+    const rangeMax = $("rangeMax");
+    const noRepeatNumbers = $("noRepeatNumbers");
+    const resetNumbersRoundBtn = $("resetNumbersRoundBtn");
+
+    const pickBtn = $("pickBtn");
+    const pickAndCountBtn = $("pickAndCountBtn");
+    const clearHistoryBtn = $("clearHistoryBtn");
+    const clearAllBtn = $("clearAllBtn");
+    const undoBtn = $("undoBtn");
+
+    // ---------- Persistence ----------
+    function save(){
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    }
+
+    function load(){
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return;
+      try{
+        const data = JSON.parse(raw);
+        Object.assign(state, data);
+      }catch{ /* ignore */ }
+    }
+
+    // ---------- Mode + UI ----------
+    function setMode(mode){
+      state.mode = mode;
+
+      const isStudents = mode === "students";
+      tabStudents.classList.toggle("active", isStudents);
+      tabNumbers.classList.toggle("active", !isStudents);
+      tabStudents.setAttribute("aria-selected", String(isStudents));
+      tabNumbers.setAttribute("aria-selected", String(!isStudents));
+
+      panelStudents.style.display = isStudents ? "block" : "none";
+      panelNumbers.style.display = isStudents ? "none" : "block";
+
+      renderStatus();
+      renderRoundPill();
+      save();
+    }
+
+    function renderStatus(){
+      if (state.mode === "students"){
+        statusPill.textContent = `${state.students.length} students`;
+      }else{
+        const [mn, mx] = normalizedRange();
+        statusPill.textContent = `Numbers: ${mn}–${mx} (${mx - mn + 1})`;
+      }
+    }
+
+    function renderRoundPill(){
+      const counted = state.history.filter(h => h.counted && h.mode === state.mode).length;
+
+      if (state.mode === "students"){
+        const remaining = state.noRepeatStudents ? state.studentsPool.length : state.students.length;
+        roundPill.textContent = state.noRepeatStudents
+          ? `Students • ${counted} counted • ${remaining} remaining`
+          : `Students • ${counted} counted`;
+      }else{
+        const [mn, mx] = normalizedRange();
+        const total = mx - mn + 1;
+        const remaining = state.noRepeatNumbers ? state.numbersPool.length : total;
+        roundPill.textContent = state.noRepeatNumbers
+          ? `Numbers • ${counted} counted • ${remaining} remaining`
+          : `Numbers • ${counted} counted`;
+      }
+    }
+
+    function renderHistory(){
+      historyEl.innerHTML = "";
+      if (!state.history.length){
+        const empty = document.createElement("div");
+        empty.className = "muted";
+        empty.textContent = "No picks yet.";
+        historyEl.appendChild(empty);
+        return;
+      }
+
+      for (const item of state.history.slice().reverse()){
+        const row = document.createElement("div");
+        row.className = "hist-item";
+        const left = document.createElement("div");
+        left.innerHTML = `<div class="name">${item.mode === "students" ? "👥" : "🔢"} ${escapeHtml(String(item.value))} ${item.counted ? "✅" : "🎲"}</div>`;
+        const right = document.createElement("div");
+        right.className = "time";
+        right.textContent = item.time;
+        row.appendChild(left);
+        row.appendChild(right);
+        historyEl.appendChild(row);
+      }
+    }
+
+    function escapeHtml(s){
+      return String(s)
+        .replaceAll("&","&amp;")
+        .replaceAll("<","&lt;")
+        .replaceAll(">","&gt;")
+        .replaceAll('"',"&quot;")
+        .replaceAll("'","&#039;");
+    }
+
+    function setPicked(val, hint){
+      pickedValue.textContent = val ?? "—";
+      pickedHint.textContent = hint ?? "";
+    }
+
+    // ---------- Students ----------
+    function syncStudents(){
+      state.students = cleanList(studentsInput.value);
+
+      // Keep pool consistent
+      const sSet = new Set(state.students);
+      state.studentsPool = state.studentsPool.filter(n => sSet.has(n));
+      // Add any new names into pool (so they can be picked in current round)
+      for (const n of state.students){
+        if (!state.studentsPool.includes(n)) state.studentsPool.push(n);
+      }
+      state.studentsPool = shuffle(state.studentsPool);
+    }
+
+    function resetStudentsRound(){
+      syncStudents();
+      // pool = all students minus counted students (within students mode) if you want strict "until everyone"
+      const counted = new Set(state.history.filter(h => h.mode==="students" && h.counted).map(h => h.value));
+      state.studentsPool = shuffle(state.students.filter(n => !counted.has(n)));
+      save();
+      renderStatus(); renderRoundPill();
+      setPicked("—", "Student round reset.");
+    }
+
+    // ---------- Numbers ----------
+    function normalizedRange(){
+      let mn = clampInt(Number(rangeMin.value));
+      let mx = clampInt(Number(rangeMax.value));
+      if (mn > mx) [mn, mx] = [mx, mn];
+      // limit range size a bit (avoid freezing if someone puts 1..99999999)
+      const MAX_SIZE = 200000;
+      if (mx - mn + 1 > MAX_SIZE) mx = mn + MAX_SIZE - 1;
+      return [mn, mx];
+    }
+
+    function syncNumbers(){
+      const [mn, mx] = normalizedRange();
+      state.rangeMin = mn; state.rangeMax = mx;
+
+      rangeMin.value = String(mn);
+      rangeMax.value = String(mx);
+
+      // Keep pool consistent with current range
+      const inRange = (x) => Number.isInteger(x) && x >= mn && x <= mx;
+      state.numbersPool = state.numbersPool.filter(inRange);
+
+      // If pool empty, fill (common on first run or after change)
+      if (!state.numbersPool.length){
+        state.numbersPool = buildRange(mn, mx);
+        state.numbersPool = shuffle(state.numbersPool);
+      }
+    }
+
+    function buildRange(mn, mx){
+      const size = mx - mn + 1;
+      const arr = new Array(size);
+      for (let i = 0; i < size; i++) arr[i] = mn + i;
+      return arr;
+    }
+
+    function resetNumbersRound(){
+      syncNumbers();
+      const counted = new Set(state.history.filter(h => h.mode==="numbers" && h.counted).map(h => Number(h.value)));
+      const [mn, mx] = normalizedRange();
+      const all = buildRange(mn, mx).filter(n => !counted.has(n));
+      state.numbersPool = shuffle(all);
+      save();
+      renderStatus(); renderRoundPill();
+      setPicked("—", "Number round reset.");
+    }
+
+    // ---------- Picker core ----------
+    let spinning = false;
+    let spinTimer = null;
+
+    function stopSpin(){
+      if (spinTimer) clearInterval(spinTimer);
+      spinTimer = null;
+      spinning = false;
+      rouletteText.textContent = "\\u00A0";
+    }
+
+    function startSpin(candidates){
+      stopSpin();
+      spinning = true;
+      const items = candidates.length ? candidates : ["—"];
+      let i = 0;
+      spinTimer = setInterval(() => {
+        rouletteText.textContent = String(items[i % items.length]);
+        i++;
+      }, 55);
+    }
+
+    function pickOne(candidates){
+      if (!candidates.length) return null;
+      const idx = Math.floor(Math.random() * candidates.length);
+      return candidates[idx];
+    }
+
+    function getCandidates(){
+      if (state.mode === "students"){
+        syncStudents();
+        if (!state.students.length) return [];
+        if (!state.noRepeatStudents) return state.students;
+        return state.studentsPool.length ? state.studentsPool : [];
+      }else{
+        syncNumbers();
+        const [mn, mx] = normalizedRange();
+        const total = mx - mn + 1;
+        if (total <= 0) return [];
+        if (!state.noRepeatNumbers) return ["__RANGE__"]; // special flag
+        return state.numbersPool.length ? state.numbersPool : [];
+      }
+    }
+
+    function pick({counted}){
+      if (spinning) return;
+
+      const candidates = getCandidates();
+
+      // Validate empty cases
+      if (state.mode === "students"){
+        if (!state.students.length){
+          setPicked("—", "Add student names first.");
+          return;
+        }
+        if (state.noRepeatStudents && !state.studentsPool.length){
+          setPicked("—", "Student round finished. Reset round.");
+          return;
+        }
+      }else{
+        const [mn, mx] = normalizedRange();
+        if (mx - mn + 1 <= 0){
+          setPicked("—", "Invalid range.");
+          return;
+        }
+        if (state.noRepeatNumbers && !state.numbersPool.length){
+          setPicked("—", "Number round finished. Reset round.");
+          return;
+        }
+      }
+
+      // Build spin display list
+      let spinList = [];
+      if (state.mode === "students"){
+        spinList = shuffle(candidates).slice(0, Math.min(14, candidates.length));
+      }else{
+        const [mn, mx] = normalizedRange();
+        const total = mx - mn + 1;
+        if (state.noRepeatNumbers){
+          spinList = shuffle(candidates).slice(0, Math.min(14, candidates.length));
+        }else{
+          // Sample values without building whole huge list (but we've size-limited anyway)
+          const k = Math.min(14, total);
+          for (let i=0;i<k;i++){
+            const v = mn + Math.floor(Math.random() * total);
+            spinList.push(v);
+          }
+        }
+      }
+
+      startSpin(spinList);
+      const duration = 900;
+
+      setTimeout(() => {
+        stopSpin();
+
+        let winner = null;
+
+        if (state.mode === "students"){
+          const source = state.noRepeatStudents ? state.studentsPool : state.students;
+          winner = pickOne(source);
+          if (!winner) return;
+
+          state.history.push({ mode:"students", value:winner, time: nowTime(), counted: !!counted });
+          if (counted && state.noRepeatStudents){
+            state.studentsPool = state.studentsPool.filter(n => n !== winner);
+          }
+
+          setPicked(winner, counted
+            ? (state.noRepeatStudents ? "Counted (removed from this round)." : "Counted.")
+            : "Preview pick (not counted)."
+          );
+        }else{
+          const [mn, mx] = normalizedRange();
+          const total = mx - mn + 1;
+
+          if (state.noRepeatNumbers){
+            winner = pickOne(state.numbersPool);
+            if (!winner && total > 0) return;
+            state.history.push({ mode:"numbers", value:winner, time: nowTime(), counted: !!counted });
+            if (counted){
+              state.numbersPool = state.numbersPool.filter(n => n !== winner);
+            }
+          }else{
+            winner = mn + Math.floor(Math.random() * total);
+            state.history.push({ mode:"numbers", value:winner, time: nowTime(), counted: !!counted });
+          }
+
+          setPicked(String(winner), counted
+            ? (state.noRepeatNumbers ? "Counted (removed from this round)." : "Counted.")
+            : "Preview pick (not counted)."
+          );
+        }
+
+        save();
+        renderStatus();
+        renderRoundPill();
+        renderHistory();
+      }, duration);
+    }
+
+    // ---------- Buttons ----------
+    function clearHistory(){
+      if (!confirm("Clear history?")) return;
+      state.history = [];
+      // reset pools
+      state.studentsPool = shuffle(state.students);
+      const [mn, mx] = normalizedRange();
+      state.numbersPool = shuffle(buildRange(mn, mx));
+      save();
+      renderRoundPill();
+      renderHistory();
+      setPicked("—","History cleared.");
+    }
+
+    function clearAll(){
+      if (!confirm("Clear everything (students, numbers, history)?")) return;
+      Object.assign(state, {
+        mode: "students",
+        students: [], noRepeatStudents:false, studentsPool: [],
+        rangeMin:1, rangeMax:50, noRepeatNumbers:false, numbersPool: [],
+        history:[]
+      });
+      studentsInput.value = "";
+      rangeMin.value = "1";
+      rangeMax.value = "50";
+      noRepeatStudents.checked = false;
+      noRepeatNumbers.checked = false;
+      noRepeatNumbers.checked = false;
+      setMode("students");
+      save();
+      renderHistory();
+      setPicked("—","Cleared.");
+    }
+
+    function undoLast(){
+      for (let i = state.history.length - 1; i >= 0; i--){
+        const item = state.history[i];
+        if (!item.counted) continue;
+
+        state.history.splice(i, 1);
+
+        if (item.mode === "students" && state.noRepeatStudents){
+          // return to pool if still in list
+          if (state.students.includes(item.value) && !state.studentsPool.includes(item.value)){
+            state.studentsPool.push(item.value);
+            state.studentsPool = shuffle(state.studentsPool);
+          }
+        }
+        if (item.mode === "numbers" && state.noRepeatNumbers){
+          const v = Number(item.value);
+          const [mn, mx] = normalizedRange();
+          if (Number.isInteger(v) && v >= mn && v <= mx && !state.numbersPool.includes(v)){
+            state.numbersPool.push(v);
+            state.numbersPool = shuffle(state.numbersPool);
+          }
+        }
+
+        save();
+        renderRoundPill();
+        renderHistory();
+        setPicked(String(item.value), "Undone (returned to pool).");
+        return;
+      }
+      setPicked("—", "Nothing to undo yet.");
+    }
+
+    async function copyCleanedList(){
+      syncStudents();
+      const text = state.students.join("\\n");
+      try{
+        await navigator.clipboard.writeText(text);
+        setPicked("✓ Copied", "Cleaned list copied to clipboard.");
+      }catch{
+        const tmp = document.createElement("textarea");
+        tmp.value = text;
+        document.body.appendChild(tmp);
+        tmp.select();
+        document.execCommand("copy");
+        tmp.remove();
+        setPicked("✓ Copied", "Cleaned list copied (fallback).");
+      }
+    }
+
+    // ---------- Wiring ----------
+    tabStudents.addEventListener("click", () => setMode("students"));
+    tabNumbers.addEventListener("click", () => setMode("numbers"));
+
+    studentsInput.addEventListener("input", () => { syncStudents(); save(); renderStatus(); renderRoundPill(); });
+    noRepeatStudents.addEventListener("change", () => {
+      state.noRepeatStudents = noRepeatStudents.checked;
+      syncStudents();
+      if (state.noRepeatStudents && !state.studentsPool.length) state.studentsPool = shuffle(state.students);
+      save(); renderRoundPill();
+    });
+    resetStudentsRoundBtn.addEventListener("click", resetStudentsRound);
+    copyListBtn.addEventListener("click", copyCleanedList);
+
+    rangeMin.addEventListener("input", () => { syncNumbers(); save(); renderStatus(); renderRoundPill(); });
+    rangeMax.addEventListener("input", () => { syncNumbers(); save(); renderStatus(); renderRoundPill(); });
+    noRepeatNumbers.addEventListener("change", () => {
+      state.noRepeatNumbers = noRepeatNumbers.checked;
+      syncNumbers();
+      if (state.noRepeatNumbers && !state.numbersPool.length){
+        const [mn, mx] = normalizedRange();
+        state.numbersPool = shuffle(buildRange(mn, mx));
+      }
+      save(); renderRoundPill();
+    });
+    resetNumbersRoundBtn.addEventListener("click", resetNumbersRound);
+
+    pickBtn.addEventListener("click", () => pick({counted:false}));
+    pickAndCountBtn.addEventListener("click", () => pick({counted:true}));
+
+    clearHistoryBtn.addEventListener("click", clearHistory);
+    clearAllBtn.addEventListener("click", clearAll);
+    undoBtn.addEventListener("click", undoLast);
+
+    window.addEventListener("keydown", (e) => {
+      const tag = (document.activeElement && document.activeElement.tagName) || "";
+      const typing = tag === "TEXTAREA" || tag === "INPUT";
+      if (typing) return;
+      if (e.key === " " || e.key === "Enter"){
+        e.preventDefault();
+        pick({counted:true});
+      }
+    });
+
+    // ---------- Init ----------
+    load();
+
+    studentsInput.value = (state.students || []).join("\\n");
+    noRepeatStudents.checked = !!state.noRepeatStudents;
+
+    rangeMin.value = String(state.rangeMin ?? 1);
+    rangeMax.value = String(state.rangeMax ?? 50);
+    noRepeatNumbers.checked = !!state.noRepeatNumbers;
+
+    // Ensure pools exist
+    syncStudents();
+    if (!state.studentsPool.length) state.studentsPool = shuffle(state.students);
+
+    syncNumbers();
+    const [mn, mx] = normalizedRange();
+    if (!state.numbersPool.length) state.numbersPool = shuffle(buildRange(mn, mx));
+
+    setMode(state.mode === "numbers" ? "numbers" : "students");
+    renderHistory();
+    renderRoundPill();
+    setPicked("—","Ready.");
+  </script>
+</body>
+</html>
