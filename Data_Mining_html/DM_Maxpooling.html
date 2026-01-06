@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>MNIST Pooling - Logic Explorer</title>
+    <style>
+        body { margin: 0; background: #050505; color: #eee; font-family: 'Segoe UI', sans-serif; overflow: hidden; }
+        #ui { 
+            position: absolute; top: 10px; left: 10px; z-index: 1000; 
+            background: rgba(15, 15, 15, 0.95); padding: 20px; 
+            border: 1px solid #ff0055; border-radius: 12px; 
+            width: 320px; box-shadow: 0 0 30px rgba(255,0,85,0.3);
+        }
+        .section { margin-bottom: 15px; border-bottom: 1px solid #333; padding-bottom: 10px; }
+        label { font-size: 0.7rem; color: #ff0055; text-transform: uppercase; letter-spacing: 1.5px; display: block; margin-bottom: 8px; }
+        .highlight { color: #ff0055; font-weight: bold; }
+        .btn-group { display: flex; gap: 10px; margin-top: 5px; }
+        button { flex: 1; padding: 10px; border-radius: 6px; cursor: pointer; font-weight: bold; border: 1px solid #ff0055; transition: 0.2s; }
+        .btn-logic { background: #222; color: #ff0055; }
+        .btn-logic.active { background: #ff0055; color: white; }
+        .btn-next { background: #444; color: white; border: none; width: 100%; margin-top: 10px; }
+        .stat-box { background: #111; padding: 10px; border-radius: 6px; font-family: monospace; font-size: 0.9rem; margin-top: 10px;}
+        input[type="range"] { width: 100%; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+<div id="ui">
+    <div class="section">
+        <label>1. Dataset</label>
+        <button class="btn-next" onclick="nextImage()">🖼️ NEXT DIGIT</button>
+    </div>
+
+    <div class="section">
+        <label>2. Pooling Logic</label>
+        <div class="btn-group">
+            <button id="maxBtn" class="active" onclick="setMode('max')">MAX</button>
+            <button id="avgBtn" class="" onclick="setMode('avg')">AVERAGE</button>
+        </div>
+        <div style="margin-top: 10px; font-size: 0.8rem;">
+            Window Size: <span class="highlight">2 x 2</span>
+        </div>
+    </div>
+
+    <div class="section">
+        <label>3. Animation Speed</label>
+        <div style="display: flex; justify-content: space-between;">
+            <span id="speed-display" class="highlight">20 ms</span>
+        </div>
+        <input type="range" id="speed-slider" min="5" max="200" value="20" oninput="updateSpeed(this.value)">
+    </div>
+
+    <div class="stat-box">
+        Current Value: <span id="val-info" class="highlight">0.00</span><br>
+        Mode: <span id="mode-info" class="highlight">MAX</span>
+    </div>
+</div>
+
+<script type="importmap">
+    { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+</script>
+
+<script type="module">
+    import * as THREE from 'three';
+
+    let scene, camera, renderer, step = 0, lastTime = 0;
+    let currentDigit = 7, poolingMode = 'max';
+    window.throttle = 20; 
+    
+    const size = 28;
+    const windowSize = 2;
+    const outS = 14; 
+    const inputData = [];
+    const inputMeshes = [];
+    const outputMeshes = [];
+    let poolIndicator;
+
+    function generateDigitData(digit) {
+        let data = Array(size).fill(0).map(() => Array(size).fill(0.05));
+        const mid = 14;
+        for(let y=0; y<size; y++) {
+            for(let x=0; x<size; x++) {
+                let draw = false;
+                if (digit === 7) draw = (y === 7 && x > 7 && x < 21) || (x + y === 28 && x > 7 && x < 21);
+                if (digit === 0) draw = Math.abs(Math.sqrt((x-mid)**2 + (y-mid)**2) - 7) < 1.5;
+                if (digit === 1) draw = x === 14 && y > 5 && y < 23;
+                if (digit === 4) draw = (x === 18 && y > 5 && y < 23) || (y === 16 && x > 6 && x < 22) || (x+y === 22 && x > 6 && x < 14);
+                if (draw) data[y][x] = 0.8 + Math.random() * 0.2;
+            }
+        }
+        return data;
+    }
+
+    window.setMode = (mode) => {
+        poolingMode = mode;
+        document.getElementById('maxBtn').className = mode === 'max' ? 'active' : '';
+        document.getElementById('avgBtn').className = mode === 'avg' ? 'active' : '';
+        document.getElementById('mode-info').innerText = mode.toUpperCase();
+        // Reset output
+        step = 0;
+        outputMeshes.forEach(m => m.material.color.setHex(0x111111));
+    };
+
+    window.nextImage = () => {
+        const digits = [7, 0, 1, 4];
+        currentDigit = digits[(digits.indexOf(currentDigit) + 1) % digits.length];
+        const newData = generateDigitData(currentDigit);
+        for(let y=0; y<size; y++) {
+            for(let x=0; x<size; x++) {
+                inputData[y][x] = newData[y][x];
+                inputMeshes[y][x].material.color.setRGB(newData[y][x], newData[y][x], newData[y][x]);
+            }
+        }
+        step = 0;
+        outputMeshes.forEach(m => m.material.color.setHex(0x111111));
+    };
+
+    window.updateSpeed = (val) => {
+        window.throttle = parseInt(val);
+        document.getElementById('speed-display').innerText = val + " ms";
+    };
+
+    function init() {
+        scene = new THREE.Scene();
+        camera = new THREE.PerspectiveCamera(50, window.innerWidth/window.innerHeight, 0.1, 1000);
+        camera.position.set(14, 45, 50); camera.lookAt(25, 0, 14);
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        const initial = generateDigitData(currentDigit);
+        for (let y = 0; y < size; y++) {
+            inputData[y] = []; inputMeshes[y] = [];
+            for (let x = 0; x < size; x++) {
+                inputData[y][x] = initial[y][x];
+                const m = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.9), new THREE.MeshBasicMaterial({ color: new THREE.Color(initial[y][x], initial[y][x], initial[y][x]) }));
+                m.position.set(x, 0, y); m.rotation.x = -Math.PI/2;
+                scene.add(m);
+                inputMeshes[y][x] = m;
+            }
+        }
+
+        for (let y = 0; y < outS; y++) {
+            for (let x = 0; x < outS; x++) {
+                const m = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.9), new THREE.MeshBasicMaterial({ color: 0x111111 }));
+                m.position.set(x + 35, 0, y); m.rotation.x = -Math.PI/2;
+                scene.add(m);
+                outputMeshes.push(m);
+            }
+        }
+
+        poolIndicator = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), new THREE.MeshBasicMaterial({ color: 0xff0055, transparent: true, opacity: 0.5 }));
+        poolIndicator.position.set(0.5, 0.1, 0.5); poolIndicator.rotation.x = -Math.PI/2;
+        scene.add(poolIndicator);
+
+        animate();
+    }
+
+    function animate(time) {
+        requestAnimationFrame(animate);
+        if (time - lastTime < window.throttle) return;
+        lastTime = time;
+
+        const outX = step % outS;
+        const outY = Math.floor(step / outS);
+        const inX = outX * 2;
+        const inY = outY * 2;
+
+        let resultVal = 0;
+        if (poolingMode === 'max') {
+            let max = 0;
+            for(let dy=0; dy<2; dy++) {
+                for(let dx=0; dx<2; dx++) {
+                    max = Math.max(max, inputData[inY + dy][inX + dx]);
+                }
+            }
+            resultVal = max;
+        } else {
+            let sum = 0;
+            for(let dy=0; dy<2; dy++) {
+                for(let dx=0; dx<2; dx++) {
+                    sum += inputData[inY + dy][inX + dx];
+                }
+            }
+            resultVal = sum / 4;
+        }
+
+        poolIndicator.position.set(inX + 0.5, 0.1, inY + 0.5);
+        outputMeshes[step].material.color.setRGB(resultVal, resultVal, resultVal);
+        document.getElementById('val-info').innerText = resultVal.toFixed(2);
+
+        step = (step + 1) % (outS * outS);
+        renderer.render(scene, camera);
+    }
+    init();
+</script>
+</body>
+</html>
