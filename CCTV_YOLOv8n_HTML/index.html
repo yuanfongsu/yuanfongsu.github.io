@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI 淹水分割系統 (Segmentation)</title>
+    <title>AI 淹水分割系統 (僅輪廓版)</title>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
 
     <style>
@@ -119,7 +119,7 @@
         /* 圖片大小控制 */
         img#preview, canvas#result-canvas {
             max-width: 100%;
-            max-height: 250px; /* 依照您的要求，限制高度 */
+            max-height: 250px; 
             display: none;
             border-radius: 4px;
             object-fit: contain;
@@ -133,8 +133,8 @@
 <body>
 
     <div class="main-container">
-        <h1>AI 淹水分割偵測</h1>
-        <p style="color:#888; font-size: 0.9em;">系統將在右側繪製出淹水邊緣</p>
+        <h1>AI 淹水分割偵測 (Only Edge)</h1>
+        <p style="color:#888; font-size: 0.9em;">僅繪製淹水區域的邊緣輪廓</p>
 
         <div class="controls">
             <input type="file" id="uploadInput" accept="image/*">
@@ -208,8 +208,6 @@
                     previewImg.src = e.target.result;
                     previewImg.style.display = 'block';
                     placeholderLeft.style.display = 'none';
-                    
-                    // 重置右側
                     resultCanvas.style.display = 'none';
                     placeholderRight.style.display = 'block';
                     statusText.innerText = "圖片已載入";
@@ -227,7 +225,7 @@
             resultCanvas.width = previewImg.naturalWidth;
             resultCanvas.height = previewImg.naturalHeight;
             
-            // 繪製底圖到右側 Canvas (若想看純黃線可註解此行，但通常會畫在圖上)
+            // 繪製底圖到右側 Canvas
             const ctx = resultCanvas.getContext('2d');
             ctx.drawImage(previewImg, 0, 0, resultCanvas.width, resultCanvas.height);
 
@@ -248,8 +246,6 @@
                 
                 // 判斷輸出順序
                 let output0, output1;
-                // output0: Boxes [1, 37, N]
-                // output1: Masks [1, 32, H, W] OR [1, H, W, 32]
                 if (Array.isArray(results)) {
                     if (results[0].shape.length === 3) {
                         output0 = results[0]; output1 = results[1];
@@ -281,27 +277,22 @@
 
                 if (bestIdx !== -1 && maxScore > CONFIDENCE_THRESHOLD) {
                     const bestData = boxesData[bestIdx];
-                    // 取得 Mask Coefficients (最後32個)
+                    // 取得 Mask Coefficients
                     const maskCoeffs = bestData.slice(5, 5 + 32); 
                     const coeffsTensor = tf.tensor2d(maskCoeffs, [32, 1]);
 
-                    // --- 2. 處理遮罩 (修復矩陣形狀錯誤) ---
-                    const protoTensor = output1.squeeze(); // [32, H, W] 或 [H, W, 32]
+                    // --- 2. 處理遮罩 ---
+                    const protoTensor = output1.squeeze();
                     const shape = protoTensor.shape;
                     
-                    let maskMat; // 這是我們準備拿來跟 Coeffs 相乘的大矩陣
+                    let maskMat;
                     let protoH, protoW;
 
-                    // 【關鍵修正】自動判斷 32 通道在哪個位置
                     if (shape[0] === 32) {
-                        // 格式: [32, H, W] (NCHW)
-                        // 需要轉置成 [H*W, 32]
                         protoH = shape[1];
                         protoW = shape[2];
                         maskMat = protoTensor.reshape([32, protoH * protoW]).transpose(); 
                     } else if (shape[shape.length - 1] === 32) {
-                        // 格式: [H, W, 32] (NHWC) - 您遇到的情況應該是這種
-                        // 直接 Reshape 成 [H*W, 32] 即可
                         protoH = shape[0];
                         protoW = shape[1];
                         maskMat = protoTensor.reshape([protoH * protoW, 32]);
@@ -309,7 +300,6 @@
                         throw new Error(`無法識別遮罩原型形狀: ${shape}`);
                     }
 
-                    // 矩陣相乘: [N, 32] x [32, 1] = [N, 1]
                     const maskFlat = maskMat.matMul(coeffsTensor);
                     const maskActivated = tf.sigmoid(maskFlat);
                     const maskImg = maskActivated.reshape([protoH, protoW]);
@@ -320,7 +310,6 @@
                     maskCanvas.height = protoH;
                     await tf.browser.toPixels(maskImg, maskCanvas);
 
-                    // 放大到原圖尺寸
                     const tempCanvas = document.createElement('canvas');
                     tempCanvas.width = resultCanvas.width;
                     tempCanvas.height = resultCanvas.height;
@@ -338,11 +327,11 @@
                     const width = tempCanvas.width;
                     const height = tempCanvas.height;
 
-                    // 簡單邊緣偵測迴圈
+                    // 迴圈：只繪製邊緣
                     for (let y = 1; y < height - 1; y++) {
                         for (let x = 1; x < width - 1; x++) {
                             const i = (y * width + x) * 4;
-                            const isMask = pixels[i] > 128; // 判斷是否為掩碼區域
+                            const isMask = pixels[i] > 128; // 是否為掩碼
 
                             if (isMask) {
                                 // 檢查鄰居 (上下左右)
@@ -351,19 +340,16 @@
                                 const left = pixels[(y * width + (x-1)) * 4] > 128;
                                 const right = pixels[(y * width + (x+1)) * 4] > 128;
 
+                                // 如果鄰居中有任何一個不是掩碼，代表這裡是邊緣
                                 if (!up || !down || !left || !right) {
-                                    // 這是邊緣 -> 畫不透明黃色
+                                    // 繪製邊緣：不透明黃色
                                     outPixels[i] = 255;   // R
-                                    outPixels[i+1] = 215; // G
+                                    outPixels[i+1] = 215; // G (Gold)
                                     outPixels[i+2] = 0;   // B
-                                    outPixels[i+3] = 255; // Alpha
-                                } else {
-                                    // 這是內部 -> 畫淡黃色透明 (可選)
-                                    outPixels[i] = 255;
-                                    outPixels[i+1] = 215;
-                                    outPixels[i+2] = 0;
-                                    outPixels[i+3] = 40;  // 降低透明度
-                                }
+                                    outPixels[i+3] = 255; // Alpha (完全不透明)
+                                } 
+                                // 【修改】原本這裡有 else {} 用來畫內部填色，現在移除了。
+                                // 這樣內部像素會保持原本的透明度 (0)，也就是不畫任何東西。
                             }
                         }
                     }
