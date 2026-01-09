@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CCTV Flood Detection YOLOv8n</title>
+    <title>AI 淹水分割</title>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
 
     <style>
@@ -72,8 +72,8 @@
 <body>
 
     <div class="main-container">
-        <h1>CCTV Flood Detection YOLOv8n</h1>
-        <p style="color:#888; font-size: 0.9em;">信心指數將顯示於淹水區域中心</p>
+        <h1>AI 淹水分割 (Auto Font Size)</h1>
+        <p style="color:#888; font-size: 0.9em;">字體大小將自動適應圖片解析度</p>
 
         <div class="controls">
             <input type="file" id="uploadInput" accept="image/*">
@@ -107,7 +107,7 @@
         const MODEL_INPUT_SIZE = 320; 
         const CONFIDENCE_THRESHOLD = 0.3; 
         const IOU_THRESHOLD = 0.4;
-        const LINE_THICKNESS = 2; // 線條粗細
+        const LINE_THICKNESS = 2; 
         // ==========================================
 
         let model;
@@ -263,7 +263,6 @@
                         const height = resultCanvas.height;
 
                         const edgePoints = [];
-                        // 變數：用來計算質心 (Centroid)
                         let sumX = 0;
                         let sumY = 0;
                         let pixelCount = 0;
@@ -275,12 +274,10 @@
                                 const isMask = pixels[idx] > 128;
 
                                 if (isMask) {
-                                    // 累加座標以計算中心
                                     sumX += x;
                                     sumY += y;
                                     pixelCount++;
 
-                                    // 邊緣檢測
                                     const up = pixels[((y-1) * width + x) * 4] > 128;
                                     const down = pixels[((y+1) * width + x) * 4] > 128;
                                     const left = pixels[(y * width + (x-1)) * 4] > 128;
@@ -310,30 +307,32 @@
                         }
                         ctx.putImageData(outputData, 0, 0);
 
-                        // --- 3. 繪製中心標籤 (Centroid Label) ---
+                        // --- 3. 繪製中心標籤 (Auto-Scaling Font Size) ---
                         if (pixelCount > 0) {
-                            // 計算幾何中心
                             const centerX = sumX / pixelCount;
                             const centerY = sumY / pixelCount;
+                            
+                            // 【關鍵修改】動態計算字體大小
+                            // 設定為圖片寬度的 3% (Math.floor(width * 0.03))
+                            // 並且設定最小值為 14px，以免小圖看不太到
+                            const fontSize = Math.max(14, Math.floor(width * 0.03)); 
+                            const padding = fontSize * 0.4; // Padding 也隨字體變動
 
+                            ctx.font = `bold ${fontSize}px Arial`;
                             const labelText = `${Math.round(score * 100)}%`;
-                            ctx.font = "bold 20px Arial";
                             const textMetrics = ctx.measureText(labelText);
                             const textWidth = textMetrics.width;
-                            const textHeight = 20; // 近似高度
-                            const padding = 6;
+                            const textHeight = fontSize; // 近似高度
 
-                            // 計算文字背景框的左上角位置 (讓文字居中於 CenterX, CenterY)
                             const rectX = centerX - (textWidth / 2) - padding;
                             const rectY = centerY - (textHeight / 2) - padding;
 
                             // 繪製背景
-                            ctx.fillStyle = "rgba(255, 230, 0, 0.9)"; // 黃色背景
+                            ctx.fillStyle = "rgba(255, 230, 0, 0.9)";
                             ctx.fillRect(rectX, rectY, textWidth + padding * 2, textHeight + padding * 2);
                             
                             // 繪製文字
                             ctx.fillStyle = "#000";
-                            // textBaseline 設為 middle 方便垂直居中
                             ctx.textBaseline = "middle";
                             ctx.fillText(labelText, centerX - (textWidth / 2), centerY);
                         }
