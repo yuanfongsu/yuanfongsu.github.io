@@ -268,14 +268,21 @@
             document.getElementById('waiting-count').innerText = Math.max(0, stats.waiting);
         }
 
+        // ================= 修改後的圖片讀取函式 =================
         function loadImage(img, url) {
             return new Promise((resolve, reject) => {
-                const PROXY_URL = "https://corsproxy.io/?";
+                // 指向您的 Python 本機伺服器
+                const LOCAL_PROXY = "http://localhost:5000/proxy?url=";
+                
                 img.crossOrigin = "Anonymous";
                 img.onload = () => resolve();
-                img.onerror = () => reject(new Error("Image Load Failed"));
-                // Try Proxy
-                img.src = PROXY_URL + encodeURIComponent(url);
+                img.onerror = () => {
+                    console.error(`Failed to load: ${url}`);
+                    reject(new Error("Image Load Failed"));
+                };
+                
+                // 組合網址： Localhost Proxy + 原始網址
+                img.src = LOCAL_PROXY + encodeURIComponent(url);
             });
         }
 
