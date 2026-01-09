@@ -133,7 +133,7 @@
                 // 注意：請確保這裡的路徑是指向您的 TensorFlow.js 模型 (model.json)
                 // 如果是 YOLOv8 轉換過來的模型，通常是一個資料夾
                 // 這裡假設路徑為 './model_web/model.json'，請根據實際情況修改
-                const MODEL_URL = './model_web/model.json'; 
+                const MODEL_URL = './best_web_model/model.json';
                 
                 // 載入 Graph Model (YOLO 通常轉出為 Graph Model)
                 model = await tf.loadGraphModel(MODEL_URL);
