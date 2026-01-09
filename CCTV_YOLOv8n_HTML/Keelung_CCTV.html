@@ -3,13 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>基隆市 CCTV 淹水全域監控儀表板-v2</title>
+    <title>基隆市 CCTV 淹水全域監控儀表板 (Local Python)</title>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
     
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f0f2f5; margin: 0; padding: 20px; }
         
-        /* 標題區塊 */
         .header {
             text-align: center; margin-bottom: 30px;
             background: white; padding: 20px; border-radius: 12px;
@@ -18,7 +17,6 @@
         h1 { margin: 0; color: #2c3e50; font-weight: 300; }
         .stats { color: #7f8c8d; margin-top: 10px; font-size: 14px; font-weight: bold; }
         
-        /* 控制區塊 */
         .controls { text-align: center; margin-bottom: 20px; }
         button {
             padding: 12px 24px; font-size: 16px; border: none; border-radius: 6px;
@@ -28,22 +26,18 @@
         button:hover { background-color: #2980b9; transform: translateY(-1px); }
         button:disabled { background-color: #bdc3c7; cursor: not-allowed; transform: none; box-shadow: none; }
         
-        /* 網格佈局 */
         .grid-container {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
             gap: 20px;
         }
         
-        /* 卡片樣式 */
         .card {
             background: white; border-radius: 10px; overflow: hidden;
             box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-            transition: transform 0.2s;
             display: flex; flex-direction: column;
             border: 1px solid #eee;
         }
-        .card:hover { transform: translateY(-3px); box-shadow: 0 5px 15px rgba(0,0,0,0.1); }
         
         .card-header {
             padding: 12px 15px; border-bottom: 1px solid #f0f0f0;
@@ -55,20 +49,19 @@
         
         .card-body {
             position: relative;
-            height: 240px; /* 固定高度 */
+            height: 240px;
             background-color: #eee;
             display: flex; align-items: center; justify-content: center;
         }
         
         .cctv-img {
-            width: 100%; height: 100%; object-fit: contain; /* 保持比例 */
+            width: 100%; height: 100%; object-fit: contain;
             background: black;
             display: none;
         }
         
         .placeholder { color: #aaa; font-size: 13px; display: flex; flex-direction: column; align-items: center; }
         
-        /* 狀態條 */
         .status-bar { padding: 8px 15px; font-size: 13px; font-weight: bold; text-align: center; border-top: 1px solid #eee; }
         .status-waiting { background-color: #f8f9fa; color: #7f8c8d; }
         .status-scanning { background-color: #fff3cd; color: #856404; }
@@ -84,7 +77,7 @@
 <body>
 
     <div class="header">
-        <h1>基隆市 CCTV 淹水全域監控儀表板-v2</h1>
+        <h1>基隆市 CCTV 淹水全域監控 (Python Local)</h1>
         <div class="stats">
             共監控 <span id="total-count">0</span> 處測站 | 
             <span style="color:#27ae60">● 安全: <span id="safe-count">0</span></span> | 
@@ -209,7 +202,7 @@
             try {
                 const processorImg = document.getElementById('processor-img');
                 
-                // Load Image via Proxy
+                // 【關鍵修改】使用 Python Local Proxy
                 await loadImage(processorImg, cctv.url);
                 
                 // Run Inference
@@ -268,20 +261,15 @@
             document.getElementById('waiting-count').innerText = Math.max(0, stats.waiting);
         }
 
-        // ================= 修改後的圖片讀取函式 =================
+        // 【關鍵修改】強制使用本機 Python Proxy
         function loadImage(img, url) {
             return new Promise((resolve, reject) => {
-                // 指向您的 Python 本機伺服器
                 const LOCAL_PROXY = "http://localhost:5000/proxy?url=";
                 
                 img.crossOrigin = "Anonymous";
                 img.onload = () => resolve();
-                img.onerror = () => {
-                    console.error(`Failed to load: ${url}`);
-                    reject(new Error("Image Load Failed"));
-                };
+                img.onerror = () => reject(new Error("Image Load Failed"));
                 
-                // 組合網址： Localhost Proxy + 原始網址
                 img.src = LOCAL_PROXY + encodeURIComponent(url);
             });
         }
