@@ -3,218 +3,329 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI 淹水分割</title>
+    <title>基隆市 CCTV 淹水全域監控 (Python Local)</title>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
-
+    
     <style>
-        /* --- 優雅風格 (White Theme) --- */
-        body {
-            font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
-            background-color: #ffffff;
-            color: #333;
-            margin: 0;
-            padding: 40px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            min-height: 100vh;
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f0f2f5; margin: 0; padding: 20px; }
+        
+        .header {
+            text-align: center; margin-bottom: 30px;
+            background: white; padding: 20px; border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
         }
-
-        h1 { font-weight: 300; margin-bottom: 10px; color: #2c3e50; }
-
-        .main-container {
-            width: 95%;
-            max-width: 1000px;
-            background: #fff;
-            padding: 25px;
-            border-radius: 12px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.05);
-            text-align: center;
+        h1 { margin: 0; color: #2c3e50; font-weight: 300; }
+        .stats { color: #7f8c8d; margin-top: 10px; font-size: 14px; font-weight: bold; }
+        
+        .controls { text-align: center; margin-bottom: 20px; }
+        button {
+            padding: 12px 24px; font-size: 16px; border: none; border-radius: 6px;
+            cursor: pointer; background-color: #3498db; color: white; font-weight: bold;
+            transition: all 0.3s; box-shadow: 0 4px 6px rgba(52, 152, 219, 0.2);
         }
-
-        .controls { margin: 20px 0; display: flex; gap: 15px; justify-content: center; }
-
-        button, input[type="file"]::file-selector-button {
-            background-color: #f8f9fa; border: 1px solid #e2e6ea; border-radius: 6px;
-            padding: 10px 20px; font-size: 14px; cursor: pointer; transition: all 0.2s ease; color: #555;
+        button:hover { background-color: #2980b9; transform: translateY(-1px); }
+        button:disabled { background-color: #bdc3c7; cursor: not-allowed; transform: none; box-shadow: none; }
+        
+        .grid-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 20px;
         }
-        button:hover, input[type="file"]::file-selector-button:hover { background-color: #e9ecef; color: #333; }
-        button.primary { background-color: #333; color: #fff; border: none; }
-        button.primary:hover { background-color: #555; }
-        button:disabled { opacity: 0.5; cursor: not-allowed; }
-
-        .status { margin-top: 15px; font-size: 14px; color: #666; min-height: 20px; }
-
-        .comparison-container {
-            display: flex; flex-wrap: wrap; gap: 20px; justify-content: center; margin-top: 30px;
+        
+        .card {
+            background: white; border-radius: 10px; overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            display: flex; flex-direction: column;
+            border: 1px solid #eee;
         }
-
-        .img-wrapper {
-            flex: 1; min-width: 300px; max-width: 450px;
-            display: flex; flex-direction: column; align-items: center;
+        
+        .card-header {
+            padding: 12px 15px; border-bottom: 1px solid #f0f0f0;
+            display: flex; justify-content: space-between; align-items: center;
+            background: #fdfdfd;
         }
-
-        .img-box {
-            width: 100%; min-height: 200px;
-            border: 2px dashed #eee; border-radius: 8px;
+        .card-title { font-weight: bold; font-size: 14px; color: #333; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; max-width: 220px; }
+        .card-id { font-size: 11px; color: #999; background: #eee; padding: 2px 6px; border-radius: 4px; }
+        
+        .card-body {
+            position: relative;
+            height: 240px;
+            background-color: #eee;
             display: flex; align-items: center; justify-content: center;
-            overflow: hidden; padding: 10px; background: #fafafa;
         }
-
-        .img-label { font-weight: bold; margin-bottom: 8px; color: #555; }
-
-        img#preview, canvas#result-canvas {
-            max-width: 100%; max-height: 250px; display: none; border-radius: 4px; object-fit: contain;
+        
+        .cctv-img {
+            width: 100%; height: 100%; object-fit: contain;
+            background: black;
+            display: none;
         }
-        canvas#result-canvas { box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        
+        .placeholder { color: #aaa; font-size: 13px; display: flex; flex-direction: column; align-items: center; }
+        
+        .status-bar { padding: 8px 15px; font-size: 13px; font-weight: bold; text-align: center; border-top: 1px solid #eee; }
+        .status-waiting { background-color: #f8f9fa; color: #7f8c8d; }
+        .status-scanning { background-color: #fff3cd; color: #856404; }
+        .status-safe { background-color: #d4edda; color: #155724; }
+        .status-flood { background-color: #f8d7da; color: #721c24; animation: flash 2s infinite; }
+        .status-error { background-color: #e2e3e5; color: #383d41; }
+        
+        @keyframes flash { 0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; } }
+
+        #hidden-processor { display: none; }
     </style>
 </head>
 <body>
 
-    <div class="main-container">
-        <h1>AI 淹水分割 (Auto Font Size)</h1>
-        <p style="color:#888; font-size: 0.9em;">字體大小將自動適應圖片解析度</p>
+    <div class="header">
+        <h1>基隆市 CCTV 淹水全域監控 (Python Local)</h1>
+        <div class="stats">
+            共監控 <span id="total-count">0</span> 處測站 | 
+            <span style="color:#27ae60">● 安全: <span id="safe-count">0</span></span> | 
+            <span style="color:#c0392b">● 淹水: <span id="flood-count">0</span></span> | 
+            <span style="color:#7f8c8d">● 待機: <span id="waiting-count">0</span></span>
+        </div>
+        <div id="model-status" style="margin-top:10px; font-weight:bold; color:#e67e22;">正在載入 AI 模型...</div>
+    </div>
 
-        <div class="controls">
-            <input type="file" id="uploadInput" accept="image/*">
-            <button class="primary" id="detectBtn" onclick="runDetection()" disabled>開始分析</button>
+    <div class="controls">
+        <button id="btn-start" onclick="startBatchScan()" disabled>開始全網掃描</button>
+        <button onclick="stopScan()" style="background-color:#e74c3c; margin-left:10px;">停止</button>
+    </div>
+
+    <div class="grid-container" id="grid">
         </div>
 
-        <div class="status" id="statusText">等待模型載入...</div>
-
-        <div class="comparison-container">
-            <div class="img-wrapper">
-                <div class="img-label">原始圖片</div>
-                <div class="img-box">
-                    <span id="placeholder-left" style="color: #ccc;">預覽圖</span>
-                    <img id="preview" alt="Original Image" />
-                </div>
-            </div>
-
-            <div class="img-wrapper">
-                <div class="img-label">偵測結果</div>
-                <div class="img-box">
-                    <span id="placeholder-right" style="color: #ccc;">等待執行...</span>
-                    <canvas id="result-canvas"></canvas>
-                </div>
-            </div>
-        </div>
+    <div id="hidden-processor">
+        <img id="processor-img" crossorigin="anonymous">
+        <canvas id="processor-canvas"></canvas>
     </div>
 
     <script>
-        // ================= 設定區 =================
+        // ================= 1. 資料區 (來自 CSV) =================
+        const cctvList = [{"id": "T000002", "name": "基金一路 基金交流道下匝道", "url": "https://CCTV.KLCG.GOV.TW:443/9cc4ca1c", "lat": 25.13972, "lon": 121.71492}, {"id": "T000003", "name": "中正路 祥豐街 豐稔路", "url": "https://CCTV.KLCG.GOV.TW:443/41b0eff2", "lat": 25.14195, "lon": 121.76052}, {"id": "T000005", "name": "源遠路 暖暖交流道", "url": "https://CCTV.KLCG.GOV.TW:443/e39b2843", "lat": 25.10476, "lon": 121.73497}, {"id": "T000007", "name": "東信路 崇法街", "url": "https://CCTV.KLCG.GOV.TW:443/facd4662", "lat": 25.12823, "lon": 121.76443}, {"id": "T000008", "name": "明德一路 大華橋頭", "url": "https://CCTV.KLCG.GOV.TW:443/fe38304c", "lat": 25.09992, "lon": 121.71926}, {"id": "T000009", "name": "八堵路 源遠路", "url": "https://CCTV.KLCG.GOV.TW:443/ad17e061", "lat": 25.10888, "lon": 121.73148}, {"id": "T000012", "name": "明德一路 光明路 (往台北)", "url": "https://CCTV.KLCG.GOV.TW:443/bf14f2af", "lat": 25.09941, "lon": 121.71762}, {"id": "T000014", "name": "孝二路 忠四路", "url": "https://CCTV.KLCG.GOV.TW:443/70cf7bac", "lat": 25.1283, "lon": 121.73919}, {"id": "T000015", "name": "中正路 信一路", "url": "https://CCTV.KLCG.GOV.TW:443/55c38316", "lat": 25.13135, "lon": 121.74341}, {"id": "T000016", "name": "正信路 信一路", "url": "https://CCTV.KLCG.GOV.TW:443/6972615b", "lat": 25.1286, "lon": 121.7602}, {"id": "T000018", "name": "北寧路 祥豐路 (祥豐)", "url": "https://cctv.klcg.gov.tw/582d9c95", "lat": 25.15075, "lon": 121.77225}, {"id": "T000019", "name": "北寧路 祥豐街(中正)", "url": "https://cctv.klcg.gov.tw/64253e5c", "lat": 25.15102, "lon": 121.77206}, {"id": "T000020", "name": "中正路 祥豐街(北寧)", "url": "https://cctv.klcg.gov.tw/d2fd095d", "lat": 25.15103, "lon": 121.77245}, {"id": "T000021", "name": "中山一路 成功二路", "url": "https://CCTV.KLCG.GOV.TW:443/bf0ed2e8", "lat": 25.12935, "lon": 121.73631}, {"id": "T000022", "name": "中山一路 港西高架", "url": "https://CCTV.KLCG.GOV.TW:443/a1951422", "lat": 25.13424, "lon": 121.73949}, {"id": "T000023", "name": "中正路 義一路", "url": "https://CCTV.KLCG.GOV.TW:443/fe7f8d20", "lat": 25.13699, "lon": 121.74808}, {"id": "T000024", "name": "仁二路 愛三路", "url": "https://CCTV.KLCG.GOV.TW:443/f29f13e0", "lat": 25.12955, "lon": 121.74347}, {"id": "T000026", "name": "忠一路 孝二路", "url": "https://CCTV.KLCG.GOV.TW:443/1c8ebc07", "lat": 25.13096, "lon": 121.74098}, {"id": "T000027", "name": "基金一路/二路1巷/台62匝道口", "url": "https://CCTV.KLCG.GOV.TW:443/a4fbca47", "lat": 25.14209, "lon": 121.70344}, {"id": "T000030", "name": "大武崙工業區口 基金二路14號", "url": "https://CCTV.KLCG.GOV.TW:443/79735f24", "lat": 25.14886, "lon": 121.69994}, {"id": "T000031", "name": "基金一路 基金交流道", "url": "https://CCTV.KLCG.GOV.TW:443/afc440ef", "lat": 25.1401, "lon": 121.7134}, {"id": "T000032", "name": "基金三路 基金三路56號", "url": "https://CCTV.KLCG.GOV.TW:443/6613ea0b", "lat": 25.15214, "lon": 121.6975}, {"id": "T000033", "name": "中山二路 海三廠", "url": "https://CCTV.KLCG.GOV.TW:443/f40905ec", "lat": 25.14474, "lon": 121.73888}, {"id": "T000034", "name": "台62甲匝道 東海街", "url": "https://cctv.klcg.gov.tw/cce885d5", "lat": 25.13962, "lon": 121.75274}, {"id": "T000036", "name": "實踐路253巷 堵南街", "url": "https://CCTV.KLCG.GOV.TW:443/d732959c", "lat": 25.08376, "lon": 121.68381}, {"id": "T000037", "name": "中山一路 忠一路", "url": "https://cctv.klcg.gov.tw/4e6b2984", "lat": 25.13235, "lon": 121.73828}, {"id": "T000038", "name": "仁一路 愛三路", "url": "https://cctv.klcg.gov.tw/48603956", "lat": 25.1305, "lon": 121.74399}, {"id": "T000039", "name": "中正路/正濱路(北)", "url": "https://CCTV.KLCG.GOV.TW:443/1098d034", "lat": 25.15191, "lon": 121.77018}, {"id": "T000040", "name": "中正路/正濱路(西)", "url": "https://CCTV.KLCG.GOV.TW:443/8edd00b1", "lat": 25.1519, "lon": 121.77015}, {"id": "T000041", "name": "中正路/正濱路(東)", "url": "https://CCTV.KLCG.GOV.TW:443/779d5831", "lat": 25.15188, "lon": 121.77018}, {"id": "T000042", "name": "港西街 台鐵北站", "url": "https://CCTV.KLCG.GOV.TW:443/01d5a434", "lat": 25.13473, "lon": 121.74062}, {"id": "T000043", "name": "中山一路 港西街", "url": "https://CCTV.KLCG.GOV.TW:443/a6897937", "lat": 25.13602, "lon": 121.74092}, {"id": "T000044", "name": "仁二路 愛六路", "url": "https://CCTV.KLCG.GOV.TW:443/05c7e2d9", "lat": 25.12743, "lon": 121.74724}, {"id": "T000045", "name": "中山二路36巷", "url": "https://CCTV.KLCG.GOV.TW:443/a22c3d9d", "lat": 25.13803, "lon": 121.74063}, {"id": "T000046", "name": "信二路 義四路", "url": "https://CCTV.KLCG.GOV.TW:443/5dc09fe8", "lat": 25.13004, "lon": 121.74832}, {"id": "T000047", "name": "麥金路 長庚醫院", "url": "https://CCTV.KLCG.GOV.TW:443/ed3956e0", "lat": 25.12076, "lon": 121.72193}, {"id": "T000048", "name": "台62甲 孝東路(東)", "url": "https://CCTV.KLCG.GOV.TW:443/86dd979f", "lat": 25.12809, "lon": 121.77824}, {"id": "T000049", "name": "台62甲 孝東路(南)", "url": "https://CCTV.KLCG.GOV.TW:443/31fb51dc", "lat": 25.12765, "lon": 121.77777}, {"id": "T000050", "name": "台62甲 孝東路(西)", "url": "https://CCTV.KLCG.GOV.TW:443/e34dd3c2", "lat": 25.12811, "lon": 121.77698}, {"id": "T000051", "name": "台62甲 孝東路(北)", "url": "https://CCTV.KLCG.GOV.TW:443/b97b5980", "lat": 25.12838, "lon": 121.77733}, {"id": "T000052", "name": "孝東路 深溪路 深澳坑路 (北)", "url": "https://CCTV.KLCG.GOV.TW:443/e396f4c8", "lat": 25.12861, "lon": 121.78055}, {"id": "T000053", "name": "孝東路 深溪路 深澳坑路 (東)", "url": "https://CCTV.KLCG.GOV.TW:443/2df67f02", "lat": 25.12844, "lon": 121.78055}, {"id": "T000054", "name": "孝東路 深溪路 深澳坑路 (西)", "url": "https://CCTV.KLCG.GOV.TW:443/8ec8cebd", "lat": 25.12838, "lon": 121.78024}, {"id": "T000055", "name": "孝東路 深溪路 深澳坑路 (西北)", "url": "https://CCTV.KLCG.GOV.TW:443/b872ad93", "lat": 25.12855, "lon": 121.78034}, {"id": "T000056", "name": "麥金路 基金一路", "url": "https://CCTV.KLCG.GOV.TW:443/8a2f8b58", "lat": 25.13562, "lon": 121.72174}, {"id": "T000057", "name": "安一路 西定路", "url": "https://CCTV.KLCG.GOV.TW:443/108ffee4", "lat": 25.13169, "lon": 121.73542}, {"id": "T000058", "name": "北寧路 369巷", "url": "https://cctv.klcg.gov.tw/85aa691f", "lat": 25.1402, "lon": 121.79991}, {"id": "T000059", "name": "德安路 復興路 新橫濱", "url": "https://CCTV.KLCG.GOV.TW:443/6c944104", "lat": 25.14878, "lon": 121.72586}, {"id": "T000060", "name": "中正路 北寧路 祥豐街(東)", "url": "https://CCTV.KLCG.GOV.TW:443/47668ccf", "lat": 25.15101, "lon": 121.77249}, {"id": "T000061", "name": "中正路 北寧路 祥豐街(東南)", "url": "https://CCTV.KLCG.GOV.TW:443/d6dee07c", "lat": 25.15071, "lon": 121.7723}, {"id": "T006940", "name": "麥金路 樂利三路", "url": "https://CCTV.KLCG.GOV.TW:443/15c4860f", "lat": 25.12837, "lon": 121.71997}, {"id": "T010931", "name": "正濱路 正濱路166巷口", "url": "https://CCTV.KLCG.GOV.TW:443/cc6b56ab", "lat": 25.15341, "lon": 121.76915}, {"id": "T015730", "name": "德安路 復興路", "url": "https://CCTV.KLCG.GOV.TW:443/7a0cfa17", "lat": 25.15, "lon": 121.725}, {"id": "T202400", "name": "調和街 深澳坑路", "url": "https://CCTV.KLCG.GOV.TW:443/2509bb1d", "lat": 25.11975, "lon": 121.79764}, {"id": "T202900", "name": "北寧路 調和街", "url": "https://CCTV.KLCG.GOV.TW:443/c78e20a2", "lat": 25.1394, "lon": 121.79624}, {"id": "T203170", "name": "深澳坑路 深溪路", "url": "https://CCTV.KLCG.GOV.TW:443/123f54a1", "lat": 25.12853, "lon": 121.78044}, {"id": "T203300", "name": "復興路 中和路", "url": "https://CCTV.KLCG.GOV.TW:443/98a31378", "lat": 25.14401, "lon": 121.72592}, {"id": "T203520", "name": "堵南路 千祥橋頭", "url": "https://cctv.klcg.gov.tw/24c20536", "lat": 25.0825, "lon": 121.68477}, {"id": "T204820", "name": "湖海路 外木山風景區", "url": "https://CCTV.KLCG.GOV.TW:443/46c063f1", "lat": 25.163, "lon": 121.7261}, {"id": "T205130", "name": "中山一路 中華路", "url": "https://CCTV.KLCG.GOV.TW:443/cbbaa7d5", "lat": 25.14605, "lon": 121.7387}];
+        
+        // ================= 2. CONFIG =================
         const MODEL_URL = './best_web_model/model.json';
         const MODEL_INPUT_SIZE = 320; 
-        const CONFIDENCE_THRESHOLD = 0.5; 
-        const IOU_THRESHOLD = 0.02;
-        const LINE_THICKNESS = 2; 
-        // ==========================================
-
+        const CONFIDENCE_THRESHOLD = 0.3; 
+        const LINE_THICKNESS = 2;
+        
+        // ================= 3. STATE =================
         let model;
-        const statusText = document.getElementById('statusText');
-        const uploadInput = document.getElementById('uploadInput');
-        const previewImg = document.getElementById('preview');
-        const resultCanvas = document.getElementById('result-canvas');
-        const detectBtn = document.getElementById('detectBtn');
-        const placeholderLeft = document.getElementById('placeholder-left');
-        const placeholderRight = document.getElementById('placeholder-right');
-
+        let isScanning = false;
+        let shouldStop = false;
+        const stats = { safe: 0, flood: 0, waiting: cctvList.length };
         const sigmoid = (x) => 1 / (1 + Math.exp(-x));
 
+        // ================= 4. INITIALIZATION =================
+        function init() {
+            const grid = document.getElementById('grid');
+            document.getElementById('total-count').innerText = cctvList.length;
+            document.getElementById('waiting-count').innerText = cctvList.length;
+
+            // Render Cards
+            cctvList.forEach((cctv, index) => {
+                const card = document.createElement('div');
+                card.className = 'card';
+                card.id = `card-${index}`;
+                
+                card.innerHTML = `
+                    <div class="card-header">
+                        <span class="card-title">${cctv.name}</span>
+                        <span class="card-id">${cctv.id}</span>
+                    </div>
+                    <div class="card-body" id="body-${index}">
+                        <div class="placeholder">
+                            <span>等待掃描...</span>
+                        </div>
+                        <img class="cctv-img" id="img-${index}">
+                    </div>
+                    <div class="status-bar status-waiting" id="status-${index}">等待中</div>
+                `;
+                grid.appendChild(card);
+            });
+
+            loadModel();
+        }
+
         async function loadModel() {
+            const statusEl = document.getElementById('model-status');
             try {
-                statusText.innerText = "正在載入模型...";
                 model = await tf.loadGraphModel(MODEL_URL);
+                
+                // Warmup
                 const dummy = tf.zeros([1, MODEL_INPUT_SIZE, MODEL_INPUT_SIZE, 3]);
                 model.execute(dummy);
                 tf.dispose(dummy);
-                console.log("模型載入成功");
-                statusText.innerText = "模型準備就緒，請上傳圖片。";
-                detectBtn.disabled = false;
+                
+                statusEl.innerHTML = "<span style='color:green'>✔ 模型已就緒</span>";
+                document.getElementById('btn-start').disabled = false;
             } catch (error) {
-                console.error("載入失敗:", error);
-                statusText.innerText = "錯誤：無法載入模型";
+                console.error(error);
+                statusEl.innerHTML = "<span style='color:red'>✘ 模型載入失敗 (請確認路徑)</span>";
             }
         }
-        loadModel();
 
-        uploadInput.addEventListener('change', (event) => {
-            const file = event.target.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    previewImg.src = e.target.result;
-                    previewImg.style.display = 'block';
-                    placeholderLeft.style.display = 'none';
-                    resultCanvas.style.display = 'none';
-                    placeholderRight.style.display = 'block';
-                    statusText.innerText = "圖片已載入";
-                };
-                reader.readAsDataURL(file);
+        // ================= 5. SCANNING LOGIC =================
+        async function startBatchScan() {
+            if (isScanning) return;
+            isScanning = true;
+            shouldStop = false;
+            document.getElementById('btn-start').disabled = true;
+
+            // Reset stats
+            stats.safe = 0; stats.flood = 0; stats.waiting = cctvList.length;
+            updateStats();
+
+            for (let i = 0; i < cctvList.length; i++) {
+                if (shouldStop) break;
+                
+                updateCardStatus(i, 'scanning');
+                await processCCTV(cctvList[i], i);
+                
+                // Small delay to prevent UI freeze
+                await new Promise(r => setTimeout(r, 200));
             }
-        });
-
-        async function runDetection() {
-            if (!model || !previewImg.src) return;
-            detectBtn.disabled = true;
-            statusText.innerText = "正在分析...";
             
-            resultCanvas.width = previewImg.naturalWidth;
-            resultCanvas.height = previewImg.naturalHeight;
-            const ctx = resultCanvas.getContext('2d');
-            ctx.drawImage(previewImg, 0, 0, resultCanvas.width, resultCanvas.height);
-
-            await detectAndDraw(previewImg);
-            detectBtn.disabled = false;
+            isScanning = false;
+            document.getElementById('btn-start').disabled = false;
+            document.getElementById('btn-start').innerText = "重新掃描";
         }
 
-        async function detectAndDraw(imageElement) {
-            const startTime = performance.now();
+        function stopScan() {
+            shouldStop = true;
+            isScanning = false;
+            document.getElementById('btn-start').disabled = false;
+        }
+
+        async function processCCTV(cctv, index) {
+            try {
+                const processorImg = document.getElementById('processor-img');
+                
+                // 【關鍵修改】使用 Python Local Proxy
+                // 強制讀取 localhost:5000
+                await loadImage(processorImg, cctv.url);
+                
+                // Run Inference
+                const result = await runYoloSegmentation(processorImg);
+                
+                // Update UI with Result Image
+                const displayImg = document.getElementById(`img-${index}`);
+                displayImg.src = result.dataUrl;
+                displayImg.style.display = 'block';
+                
+                // Hide Placeholder
+                const body = document.getElementById(`body-${index}`);
+                const placeholder = body.querySelector('.placeholder');
+                if(placeholder) placeholder.style.display = 'none';
+
+                if (result.hasFlood) {
+                    updateCardStatus(index, 'flood');
+                } else {
+                    updateCardStatus(index, 'safe');
+                }
+
+            } catch (err) {
+                console.warn(`CCTV ${cctv.id} failed`, err);
+                updateCardStatus(index, 'error');
+            }
+        }
+
+        function updateCardStatus(index, status) {
+            const statusBar = document.getElementById(`status-${index}`);
+            statusBar.className = 'status-bar'; // Reset
+            
+            if (status === 'scanning') {
+                statusBar.classList.add('status-scanning');
+                statusBar.innerText = "掃描分析中...";
+            } else if (status === 'safe') {
+                statusBar.classList.add('status-safe');
+                statusBar.innerText = "✔ 安全";
+                stats.safe++;
+                stats.waiting--;
+            } else if (status === 'flood') {
+                statusBar.classList.add('status-flood');
+                statusBar.innerText = "⚠ 淹水警報";
+                stats.flood++;
+                stats.waiting--;
+            } else if (status === 'error') {
+                statusBar.classList.add('status-error');
+                statusBar.innerText = "讀取失敗";
+                stats.waiting--;
+            }
+            updateStats();
+        }
+
+        function updateStats() {
+            document.getElementById('safe-count').innerText = stats.safe;
+            document.getElementById('flood-count').innerText = stats.flood;
+            document.getElementById('waiting-count').innerText = Math.max(0, stats.waiting);
+        }
+
+        // 【關鍵修改】強制使用本機 Python Proxy
+        function loadImage(img, url) {
+            return new Promise((resolve, reject) => {
+                const LOCAL_PROXY = "http://localhost:5000/proxy?url=";
+                
+                img.crossOrigin = "Anonymous";
+                img.onload = () => resolve();
+                img.onerror = () => reject(new Error("Image Load Failed"));
+                
+                img.src = LOCAL_PROXY + encodeURIComponent(url);
+            });
+        }
+
+        // ================= 6. YOLO LOGIC =================
+        async function runYoloSegmentation(imageElement) {
+            const canvas = document.getElementById('processor-canvas');
+            const ctx = canvas.getContext('2d');
+            
+            canvas.width = imageElement.naturalWidth || 640;
+            canvas.height = imageElement.naturalHeight || 480;
+            
+            // Draw original image
+            ctx.drawImage(imageElement, 0, 0, canvas.width, canvas.height);
+            
             const tfImg = tf.browser.fromPixels(imageElement)
                 .resizeNearestNeighbor([MODEL_INPUT_SIZE, MODEL_INPUT_SIZE])
                 .toFloat()
                 .div(tf.scalar(255.0))
                 .expandDims();
+                
+            let hasFlood = false;
 
             try {
                 const results = model.execute(tfImg);
                 let output0, output1;
+                
                 if (Array.isArray(results)) {
-                    if (results[0].shape.length === 3) {
-                        output0 = results[0]; output1 = results[1];
-                    } else {
-                        output0 = results[1]; output1 = results[0];
-                    }
-                } else { console.error("輸出格式不符"); return; }
+                    output0 = results[0].shape.length === 3 ? results[0] : results[1];
+                    output1 = results[0].shape.length === 3 ? results[1] : results[0];
+                } else {
+                    tfImg.dispose();
+                    return { hasFlood: false, dataUrl: canvas.toDataURL() };
+                }
 
-                const squeezed = output0.squeeze(); 
-                const transposed = squeezed.transpose([1, 0]); 
+                const squeezed = output0.squeeze();
+                const transposed = squeezed.transpose([1, 0]);
                 const boxesData = await transposed.array();
-
-                const candidateBoxes = [];
-                const candidateScores = [];
-                const candidateIndices = [];
-
+                
+                const candidates = [];
                 for (let i = 0; i < boxesData.length; i++) {
                     let score = boxesData[i][4];
                     if (score > 1.0) score = sigmoid(score);
-
                     if (score > CONFIDENCE_THRESHOLD) {
                         const [cx, cy, w, h] = boxesData[i].slice(0, 4);
-                        candidateBoxes.push([cy - h/2, cx - w/2, cy + h/2, cx + w/2]);
-                        candidateScores.push(score);
-                        candidateIndices.push(i);
+                        candidates.push({
+                            index: i,
+                            score: score
+                        });
                     }
                 }
 
-                if (candidateBoxes.length > 0) {
-                    const boxesTensor = tf.tensor2d(candidateBoxes);
-                    const scoresTensor = tf.tensor1d(candidateScores);
-                    const selectedIndicesTensor = await tf.image.nonMaxSuppressionAsync(
-                        boxesTensor, scoresTensor, 20, IOU_THRESHOLD, CONFIDENCE_THRESHOLD
-                    );
-                    const selectedIndicesMap = await selectedIndicesTensor.data();
-
+                if (candidates.length > 0) {
+                    hasFlood = true;
+                    
                     const protoTensor = output1.squeeze();
                     const pShape = protoTensor.shape;
                     let maskMat, protoH, protoW;
@@ -227,79 +338,52 @@
                         maskMat = protoTensor.reshape([protoH * protoW, 32]);
                     }
 
-                    const ctx = resultCanvas.getContext('2d');
-                    
-                    for (let i = 0; i < selectedIndicesMap.length; i++) {
-                        const idxInCandidate = selectedIndicesMap[i];
-                        const originalIdx = candidateIndices[idxInCandidate];
-                        const score = candidateScores[idxInCandidate];
-
-                        const data = boxesData[originalIdx];
+                    for (let c of candidates) {
+                        const data = boxesData[c.index];
                         const maskCoeffs = data.slice(5, 5 + 32);
                         const coeffsTensor = tf.tensor2d(maskCoeffs, [32, 1]);
-
                         const maskFlat = maskMat.matMul(coeffsTensor);
                         const maskActivated = tf.sigmoid(maskFlat);
                         const maskImg = maskActivated.reshape([protoH, protoW]);
 
                         const maskCanvas = document.createElement('canvas');
-                        maskCanvas.width = protoW;
-                        maskCanvas.height = protoH;
+                        maskCanvas.width = protoW; maskCanvas.height = protoH;
                         await tf.browser.toPixels(maskImg, maskCanvas);
-
+                        
                         const tempCanvas = document.createElement('canvas');
-                        tempCanvas.width = resultCanvas.width;
-                        tempCanvas.height = resultCanvas.height;
+                        tempCanvas.width = canvas.width; tempCanvas.height = canvas.height;
                         const tempCtx = tempCanvas.getContext('2d');
                         tempCtx.imageSmoothingEnabled = true;
                         tempCtx.drawImage(maskCanvas, 0, 0, tempCanvas.width, tempCanvas.height);
-
-                        const imgData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
-                        const pixels = imgData.data;
-
-                        const outputData = ctx.getImageData(0, 0, resultCanvas.width, resultCanvas.height);
+                        
+                        const pixels = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height).data;
+                        const outputData = ctx.getImageData(0, 0, canvas.width, canvas.height);
                         const outPixels = outputData.data;
-                        const width = resultCanvas.width;
-                        const height = resultCanvas.height;
-
+                        const w = canvas.width; const h = canvas.height;
+                        
                         const edgePoints = [];
-                        let sumX = 0;
-                        let sumY = 0;
-                        let pixelCount = 0;
+                        let sumX = 0, sumY = 0, count = 0;
 
-                        // 掃描像素
-                        for (let y = 1; y < height - 1; y++) {
-                            for (let x = 1; x < width - 1; x++) {
-                                const idx = (y * width + x) * 4;
-                                const isMask = pixels[idx] > 128;
-
-                                if (isMask) {
-                                    sumX += x;
-                                    sumY += y;
-                                    pixelCount++;
-
-                                    const up = pixels[((y-1) * width + x) * 4] > 128;
-                                    const down = pixels[((y+1) * width + x) * 4] > 128;
-                                    const left = pixels[(y * width + (x-1)) * 4] > 128;
-                                    const right = pixels[(y * width + (x+1)) * 4] > 128;
-
-                                    if (!up || !down || !left || !right) {
+                        for (let y = 1; y < h - 1; y++) {
+                            for (let x = 1; x < w - 1; x++) {
+                                const idx = (y * w + x) * 4;
+                                if (pixels[idx] > 128) {
+                                    sumX += x; sumY += y; count++;
+                                    if (pixels[((y-1)*w+x)*4] <= 128 || pixels[((y+1)*w+x)*4] <= 128 ||
+                                        pixels[(y*w+(x-1))*4] <= 128 || pixels[(y*w+(x+1))*4] <= 128) {
                                         edgePoints.push({x, y});
                                     }
                                 }
                             }
                         }
 
-                        // 畫粗邊框
-                        const thickness = LINE_THICKNESS; 
                         const r=255, g=230, b=0, a=255;
                         for (let pt of edgePoints) {
-                            for (let dy = -thickness; dy <= thickness; dy++) {
-                                for (let dx = -thickness; dx <= thickness; dx++) {
-                                    const nx = pt.x + dx;
-                                    const ny = pt.y + dy;
-                                    if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
-                                        const nIdx = (ny * width + nx) * 4;
+                            for (let dy = -LINE_THICKNESS; dy <= LINE_THICKNESS; dy++) {
+                                for (let dx = -LINE_THICKNESS; dx <= LINE_THICKNESS; dx++) {
+                                    const nx = pt.x + dx; const ny = pt.y + dy;
+                                    if (nx >= 0 && nx < w && ny >= 0 && ny < h) {
+                                        const nIdx = (ny * w + nx) * 4;
                                         outPixels[nIdx] = r; outPixels[nIdx+1] = g; outPixels[nIdx+2] = b; outPixels[nIdx+3] = a;
                                     }
                                 }
@@ -307,53 +391,41 @@
                         }
                         ctx.putImageData(outputData, 0, 0);
 
-                        // --- 3. 繪製中心標籤 (Auto-Scaling Font Size) ---
-                        if (pixelCount > 0) {
-                            const centerX = sumX / pixelCount;
-                            const centerY = sumY / pixelCount;
-                            
-                            // 【關鍵修改】動態計算字體大小
-                            // 設定為圖片寬度的 3% (Math.floor(width * 0.03))
-                            // 並且設定最小值為 14px，以免小圖看不太到
-                            const fontSize = Math.max(14, Math.floor(width * 0.03)); 
-                            const padding = fontSize * 0.4; // Padding 也隨字體變動
+                        if (count > 0) {
+                            const cx = sumX / count;
+                            const cy = sumY / count;
+                            const fontSize = Math.max(14, Math.floor(w * 0.03));
+                            const padding = fontSize * 0.4;
 
                             ctx.font = `bold ${fontSize}px Arial`;
-                            const labelText = `${Math.round(score * 100)}%`;
-                            const textMetrics = ctx.measureText(labelText);
-                            const textWidth = textMetrics.width;
-                            const textHeight = fontSize; // 近似高度
+                            const txt = `${Math.round(c.score * 100)}%`;
+                            const txtW = ctx.measureText(txt).width;
+                            const txtH = fontSize;
 
-                            const rectX = centerX - (textWidth / 2) - padding;
-                            const rectY = centerY - (textHeight / 2) - padding;
-
-                            // 繪製背景
                             ctx.fillStyle = "rgba(255, 230, 0, 0.9)";
-                            ctx.fillRect(rectX, rectY, textWidth + padding * 2, textHeight + padding * 2);
-                            
-                            // 繪製文字
+                            ctx.fillRect(cx - txtW/2 - padding, cy - txtH/2 - padding, txtW + padding*2, txtH + padding*2);
                             ctx.fillStyle = "#000";
                             ctx.textBaseline = "middle";
-                            ctx.fillText(labelText, centerX - (textWidth / 2), centerY);
+                            ctx.fillText(txt, cx - txtW/2, cy);
                         }
-
                         tf.dispose([coeffsTensor, maskFlat, maskActivated, maskImg]);
                     }
-
-                    statusText.innerText = `分析完成！偵測到 ${selectedIndicesMap.length} 個區域。`;
-                    placeholderRight.style.display = 'none';
-                    resultCanvas.style.display = 'block';
-                    tf.dispose([boxesTensor, scoresTensor, selectedIndicesTensor, protoTensor, maskMat]);
-                } else {
-                    statusText.innerText = "未偵測到任何淹水區域。";
+                    tf.dispose([protoTensor, maskMat]);
                 }
-                tf.dispose([output0, output1, squeezed, transposed, tfImg]);
-            } catch (err) {
-                console.error(err);
-                statusText.innerText = "運算錯誤：" + err.message;
-                tf.dispose(tfImg);
+                
+                tf.dispose([output0, output1, squeezed, transposed]);
+
+            } catch (e) {
+                console.error(e);
+            } finally {
+                tfImg.dispose();
             }
+
+            return { hasFlood, dataUrl: canvas.toDataURL() };
         }
+
+        init();
+
     </script>
 </body>
 </html>
