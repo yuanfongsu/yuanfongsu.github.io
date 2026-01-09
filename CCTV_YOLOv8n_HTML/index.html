@@ -3,10 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI 物件偵測系統 (150x150)</title>
+    <title>AI 物件偵測系統 (320x320)</title>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
 
     <style>
+        /* --- 優雅風格設定 --- */
         body {
             font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
             background-color: #ffffff;
@@ -68,30 +69,28 @@
             background-color: #555;
         }
 
-        /* --- 修改區域：圖片容器與大小 --- */
+        /* --- 圖片預覽區設定 --- */
         #image-container {
             margin-top: 20px;
             position: relative;
             display: inline-block;
-            min-height: 150px; /* 稍微調小容器最小高度 */
+            min-height: 150px;
             border: 2px dashed #eee;
             border-radius: 8px;
             display: flex;
             align-items: center;
             justify-content: center;
             overflow: hidden;
-            padding: 10px; /* 增加一點內距 */
+            padding: 10px;
         }
 
         img#preview {
             max-width: 100%;
-            /* 這裡控制圖片顯示大小，已改為 250px */
-            max-height: 250px; 
-            display: none; 
+            max-height: 250px; /* 依照您的要求，保持較小的預覽高度 */
+            display: none;
             border-radius: 4px;
-            object-fit: contain; /* 保持圖片比例 */
+            object-fit: contain;
         }
-        /* --------------------------- */
 
         .status {
             margin-top: 15px;
@@ -104,7 +103,7 @@
 <body>
 
     <div class="container">
-        <h1>AI 影像辨識 (150px 輸入)</h1>
+        <h1>AI 影像辨識 (320px 輸入)</h1>
         <p style="color:#888; font-size: 0.9em;">請上傳圖片進行推論測試</p>
 
         <div class="controls">
@@ -132,16 +131,16 @@
             try {
                 statusText.innerText = "正在載入模型...";
                 
-                // --- 修改區域：已更新為您正確的資料夾名稱 ---
+                // --- 設定：模型路徑 ---
+                // 確認這對應到您的資料夾結構：專案/best_web_model/model.json
                 const MODEL_URL = './best_web_model/model.json'; 
-                // ---------------------------------------
                 
                 model = await tf.loadGraphModel(MODEL_URL);
                 console.log("模型載入成功");
                 statusText.innerText = "模型載入完成，請上傳圖片。";
             } catch (error) {
                 console.error("模型載入失敗:", error);
-                statusText.innerText = "錯誤：找不到模型 (請檢查路徑或伺服器設定)";
+                statusText.innerText = "錯誤：找不到模型，請確認資料夾名稱是否為 'best_web_model'";
             }
         }
 
@@ -176,33 +175,39 @@
             await detectImage(previewImg);
         }
 
-        // 3. 執行偵測 (核心邏輯)
+        // ==========================================
+        // 3. 執行偵測 (核心邏輯 - 已修正為 320x320)
+        // ==========================================
         async function detectImage(imageElement) {
             statusText.innerText = "偵測中...";
             
-            // 設定模型輸入大小
-            const modelInputWidth = 150;
-            const modelInputHeight = 150;
+            // --- 設定：輸入尺寸 ---
+            // 修正：根據錯誤訊息，模型需要 320x320
+            const modelInputWidth = 320;
+            const modelInputHeight = 320;
 
+            // 圖像預處理
             const tfImg = tf.browser.fromPixels(imageElement)
-                .resizeNearestNeighbor([modelInputWidth, modelInputHeight])
+                .resizeNearestNeighbor([modelInputWidth, modelInputHeight]) // 縮放
                 .toFloat()
-                .div(tf.scalar(255.0))
-                .expandDims();
+                .div(tf.scalar(255.0)) // 正規化
+                .expandDims(); // 增加 batch 維度 [1, 320, 320, 3]
 
             console.log(`Input Shape: ${tfImg.shape}`); 
 
             try {
+                // --- 推論 ---
                 const predictions = await model.executeAsync(tfImg);
 
-                // 處理輸出
+                // --- 取得結果 ---
+                // 處理單一輸出或多重輸出的情況
                 const outputTensor = Array.isArray(predictions) ? predictions[0] : predictions;
-                const output = outputTensor.squeeze();
+                const output = outputTensor.squeeze(); // 移除 batch 維度
                 
                 console.log("Raw Output Shape:", output.shape);
-                statusText.innerText = `偵測完成！Output Shape: [${output.shape}]`;
+                statusText.innerText = `偵測完成！Output Shape: [${output.shape}] (詳細請看 Console)`;
                 
-                // 清理記憶體
+                // 釋放記憶體
                 tf.dispose(tfImg);
                 tf.dispose(predictions);
                 if(Array.isArray(predictions)) {
@@ -213,7 +218,7 @@
 
             } catch (err) {
                 console.error("推論錯誤:", err);
-                statusText.innerText = "偵測發生錯誤，請檢查 Console";
+                statusText.innerText = "偵測發生錯誤：" + err.message;
                 tf.dispose(tfImg);
             }
         }
