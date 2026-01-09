@@ -7,7 +7,6 @@
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
 
     <style>
-        /* 優雅風格設定 */
         body {
             font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
             background-color: #ffffff;
@@ -32,7 +31,7 @@
             background: #fff;
             padding: 20px;
             border-radius: 12px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.05); /* 輕微陰影 */
+            box-shadow: 0 4px 20px rgba(0,0,0,0.05);
             text-align: center;
         }
 
@@ -43,7 +42,6 @@
             justify-content: center;
         }
 
-        /* 優雅的按鈕樣式 */
         button, input[type="file"]::file-selector-button {
             background-color: #f8f9fa;
             border: 1px solid #e2e6ea;
@@ -70,26 +68,30 @@
             background-color: #555;
         }
 
-        /* 圖片預覽區 */
+        /* --- 修改區域：圖片容器與大小 --- */
         #image-container {
             margin-top: 20px;
             position: relative;
             display: inline-block;
-            min-height: 200px;
+            min-height: 150px; /* 稍微調小容器最小高度 */
             border: 2px dashed #eee;
             border-radius: 8px;
             display: flex;
             align-items: center;
             justify-content: center;
             overflow: hidden;
+            padding: 10px; /* 增加一點內距 */
         }
 
         img#preview {
             max-width: 100%;
-            max-height: 400px;
-            display: none; /* 預設隱藏 */
+            /* 這裡控制圖片顯示大小，已改為 250px */
+            max-height: 250px; 
+            display: none; 
             border-radius: 4px;
+            object-fit: contain; /* 保持圖片比例 */
         }
+        /* --------------------------- */
 
         .status {
             margin-top: 15px;
@@ -130,21 +132,16 @@
             try {
                 statusText.innerText = "正在載入模型...";
                 
-                // 注意：請確保這裡的路徑是指向您的 TensorFlow.js 模型 (model.json)
-                // 如果是 YOLOv8 轉換過來的模型，通常是一個資料夾
-                // 這裡假設路徑為 './model_web/model.json'，請根據實際情況修改
-                const MODEL_URL = './best_web_model/model.json';
+                // --- 修改區域：已更新為您正確的資料夾名稱 ---
+                const MODEL_URL = './best_web_model/model.json'; 
+                // ---------------------------------------
                 
-                // 載入 Graph Model (YOLO 通常轉出為 Graph Model)
                 model = await tf.loadGraphModel(MODEL_URL);
-                
-                // 如果是 Keras Layers Model，請改用: await tf.loadLayersModel(MODEL_URL);
-
                 console.log("模型載入成功");
                 statusText.innerText = "模型載入完成，請上傳圖片。";
             } catch (error) {
                 console.error("模型載入失敗:", error);
-                statusText.innerText = "錯誤：找不到模型 (請檢查路徑)";
+                statusText.innerText = "錯誤：找不到模型 (請檢查路徑或伺服器設定)";
             }
         }
 
@@ -179,47 +176,32 @@
             await detectImage(previewImg);
         }
 
-        // ==========================================
-        // 3. 執行偵測 (核心邏輯 - 已修改為 150x150)
-        // ==========================================
+        // 3. 執行偵測 (核心邏輯)
         async function detectImage(imageElement) {
             statusText.innerText = "偵測中...";
             
-            // --- 預處理 (Pre-processing) ---
-            // 這裡已修改為 150 以符合您的模型需求
+            // 設定模型輸入大小
             const modelInputWidth = 150;
             const modelInputHeight = 150;
 
-            // 使用 tf.tidy 自動清理中間產生的 tensor，避免記憶體洩漏
-            // 但因為我們要回傳或使用非同步結果，這裡手動管理比較清楚，或者只在同步運算區塊用 tidy
-            
             const tfImg = tf.browser.fromPixels(imageElement)
-                .resizeNearestNeighbor([modelInputWidth, modelInputHeight]) // 強制縮放為 150x150
+                .resizeNearestNeighbor([modelInputWidth, modelInputHeight])
                 .toFloat()
-                .div(tf.scalar(255.0)) // 正規化 (0~1)
-                .expandDims(); // 增加 batch 維度 [1, 150, 150, 3]
+                .div(tf.scalar(255.0))
+                .expandDims();
 
-            console.log(`Input Shape: ${tfImg.shape}`); // 確認輸入形狀是否為 [1, 150, 150, 3]
+            console.log(`Input Shape: ${tfImg.shape}`); 
 
             try {
-                // --- 推論 (Inference) ---
                 const predictions = await model.executeAsync(tfImg);
 
-                // --- 後處理 (Post-processing) ---
-                // YOLOv8 輸出範例：[1, 84, N] (N 取決於輸入尺寸)
-                
-                // 為了方便處理，如果輸出是 List (多個 tensor)，通常取第一個
+                // 處理輸出
                 const outputTensor = Array.isArray(predictions) ? predictions[0] : predictions;
-                const output = outputTensor.squeeze(); // 移除 batch 維度
+                const output = outputTensor.squeeze();
                 
                 console.log("Raw Output Shape:", output.shape);
-                
-                // 提示使用者
                 statusText.innerText = `偵測完成！Output Shape: [${output.shape}]`;
                 
-                // 這裡您可以加入後續的 NMS 處理與 Canvas 繪圖邏輯
-                // ...
-
                 // 清理記憶體
                 tf.dispose(tfImg);
                 tf.dispose(predictions);
