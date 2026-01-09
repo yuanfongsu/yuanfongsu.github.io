@@ -3,78 +3,73 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI 物件偵測系統 (320x320)</title>
+    <title>AI 物件偵測系統 (左右對照版)</title>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
 
     <style>
         /* --- 優雅風格設定 --- */
         body {
             font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
-            background-color: #ffffff;
+            background-color: #fcfcfc; /* 稍微改一點背景色，讓白框更明顯 */
             color: #333;
             margin: 0;
-            padding: 40px;
+            padding: 30px;
             display: flex;
             flex-direction: column;
             align-items: center;
             min-height: 100vh;
         }
 
-        h1 {
-            font-weight: 300;
-            margin-bottom: 10px;
-            color: #2c3e50;
-        }
+        h1 { font-weight: 300; margin-bottom: 10px; color: #2c3e50; }
 
-        .container {
-            width: 100%;
-            max-width: 600px;
+        .main-container {
+            width: 95%;
+            max-width: 900px; /* 加寬容器以容納兩個圖片 */
             background: #fff;
-            padding: 20px;
+            padding: 25px;
             border-radius: 12px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
             text-align: center;
         }
 
         .controls {
             margin: 20px 0;
-            display: flex;
-            gap: 10px;
-            justify-content: center;
+            display: flex; gap: 10px; justify-content: center;
         }
 
         button, input[type="file"]::file-selector-button {
-            background-color: #f8f9fa;
-            border: 1px solid #e2e6ea;
-            border-radius: 6px;
-            padding: 10px 20px;
-            font-size: 14px;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            color: #555;
+            background-color: #f8f9fa; border: 1px solid #e2e6ea;
+            border-radius: 6px; padding: 10px 20px; font-size: 14px;
+            cursor: pointer; transition: all 0.2s ease; color: #555;
+        }
+        button:hover, input[type="file"]::file-selector-button:hover { background-color: #e9ecef; color: #333; }
+        button.primary { background-color: #333; color: #fff; border: none; }
+        button.primary:hover { background-color: #555; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .status { margin-top: 15px; font-size: 14px; color: #666; min-height: 20px; font-weight: 500;}
+
+        /* --- 新增：左右對照容器佈局 --- */
+        .comparison-container {
+            display: flex;
+            flex-wrap: wrap; /* 螢幕窄時自動換行 */
+            gap: 25px;
+            justify-content: center;
+            margin-top: 30px;
         }
 
-        button:hover, input[type="file"]::file-selector-button:hover {
-            background-color: #e9ecef;
-            border-color: #dae0e5;
-            color: #333;
+        .img-wrapper {
+            flex: 1; /* 平均分配空間 */
+            min-width: 250px; /* 最小寬度 */
+            max-width: 400px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
         }
 
-        button.primary {
-            background-color: #333;
-            color: #fff;
-            border: none;
-        }
-        button.primary:hover {
-            background-color: #555;
-        }
-
-        /* --- 圖片預覽區設定 --- */
-        #image-container {
-            margin-top: 20px;
-            position: relative;
-            display: inline-block;
-            min-height: 150px;
+        .img-box {
+            width: 100%;
+            min-height: 200px;
             border: 2px dashed #eee;
             border-radius: 8px;
             display: flex;
@@ -82,69 +77,92 @@
             justify-content: center;
             overflow: hidden;
             padding: 10px;
+            background: #fafafa;
+            position: relative;
         }
+        
+        .img-label { font-weight: bold; margin-bottom: 8px; color: #555; }
 
-        img#preview {
+        /* 確保預覽圖和 Canvas 大小一致且響應式 */
+        img#preview, canvas#result-canvas {
             max-width: 100%;
-            max-height: 250px; /* 依照您的要求，保持較小的預覽高度 */
-            display: none;
-            border-radius: 4px;
+            max-height: 300px; /* 設定最大高度 */
             object-fit: contain;
+            display: none; /* 預設隱藏 */
+            border-radius: 4px;
         }
+        canvas#result-canvas { box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
 
-        .status {
-            margin-top: 15px;
-            font-size: 14px;
-            color: #666;
-            min-height: 20px;
-        }
     </style>
 </head>
 <body>
 
-    <div class="container">
-        <h1>AI 影像辨識 (320px 輸入)</h1>
-        <p style="color:#888; font-size: 0.9em;">請上傳圖片進行推論測試</p>
+    <div class="main-container">
+        <h1>AI 物件偵測 (左右對照版)</h1>
+        <p style="color:#888; font-size: 0.9em;">上傳圖片後，模型將在右側標示出偵測結果</p>
 
         <div class="controls">
             <input type="file" id="uploadInput" accept="image/*">
-            <button class="primary" onclick="runDetection()">開始偵測</button>
+            <button class="primary" id="detectBtn" onclick="runDetection()" disabled>開始偵測</button>
         </div>
 
         <div class="status" id="statusText">等待模型載入...</div>
 
-        <div id="image-container">
-            <span id="placeholder-text" style="color: #ccc;">圖片將顯示於此</span>
-            <img id="preview" alt="Image Preview" />
+        <div class="comparison-container">
+            <div class="img-wrapper">
+                <div class="img-label">原始圖片</div>
+                <div class="img-box">
+                    <span id="placeholder-left" style="color: #ccc;">預覽圖</span>
+                    <img id="preview" alt="Original Image" />
+                </div>
+            </div>
+
+            <div class="img-wrapper">
+                <div class="img-label">偵測結果</div>
+                <div class="img-box" id="result-box">
+                    <span id="placeholder-right" style="color: #ccc;">等待執行...</span>
+                    <canvas id="result-canvas"></canvas>
+                </div>
+            </div>
         </div>
     </div>
 
     <script>
+        // ================= 設定區 =================
+        const MODEL_URL = './best_web_model/model.json';
+        const MODEL_INPUT_SIZE = 320; // 模型要求的輸入大小
+        const SCORE_THRESHOLD = 0.35; // 信心分數門檻 (低於此分數不顯示)
+        const IOU_THRESHOLD = 0.45;   // NMS 重疊門檻 (數值越大，允許越多重疊框)
+        
+        // 【重要】請在此替換為您模型實際的類別名稱列表 (共 33 個)
+        // 這裡先產生 placeholder 名稱
+        const CLASS_NAMES = Array.from({length: 33}, (_, i) => `Class ${i}`);
+        // ==========================================
+
         let model;
         const statusText = document.getElementById('statusText');
         const uploadInput = document.getElementById('uploadInput');
         const previewImg = document.getElementById('preview');
-        const placeholderText = document.getElementById('placeholder-text');
+        const resultCanvas = document.getElementById('result-canvas');
+        const detectBtn = document.getElementById('detectBtn');
+        const placeholderLeft = document.getElementById('placeholder-left');
+        const placeholderRight = document.getElementById('placeholder-right');
 
         // 1. 載入模型
         async function loadModel() {
             try {
-                statusText.innerText = "正在載入模型...";
-                
-                // --- 設定：模型路徑 ---
-                // 確認這對應到您的資料夾結構：專案/best_web_model/model.json
-                const MODEL_URL = './best_web_model/model.json'; 
-                
+                statusText.innerText = "正在載入模型 (首次載入較慢)...";
+                // 使用 loadGraphModel 載入 YOLO 轉換的模型
                 model = await tf.loadGraphModel(MODEL_URL);
                 console.log("模型載入成功");
-                statusText.innerText = "模型載入完成，請上傳圖片。";
+                statusText.innerText = "模型準備就緒，請上傳圖片。";
+                detectBtn.disabled = false;
             } catch (error) {
                 console.error("模型載入失敗:", error);
-                statusText.innerText = "錯誤：找不到模型，請確認資料夾名稱是否為 'best_web_model'";
+                statusText.innerText = `錯誤：無法載入模型。請檢查路徑 '${MODEL_URL}' 是否正確。`;
+                statusText.style.color = "red";
             }
         }
-
-        // 初始化
         loadModel();
 
         // 2. 處理圖片上傳
@@ -155,7 +173,11 @@
                 reader.onload = (e) => {
                     previewImg.src = e.target.result;
                     previewImg.style.display = 'block';
-                    placeholderText.style.display = 'none';
+                    placeholderLeft.style.display = 'none';
+                    
+                    // 重置右側結果
+                    resultCanvas.style.display = 'none';
+                    placeholderRight.style.display = 'block';
                     statusText.innerText = "圖片已載入，請點擊「開始偵測」";
                 };
                 reader.readAsDataURL(file);
@@ -164,61 +186,183 @@
 
         // 按鈕觸發
         async function runDetection() {
-            if (!model) {
-                alert("模型尚未載入！");
-                return;
-            }
-            if (!previewImg.src || previewImg.style.display === 'none') {
-                alert("請先上傳圖片！");
-                return;
-            }
-            await detectImage(previewImg);
+            if (!model || !previewImg.src) return;
+            detectBtn.disabled = true;
+            await detectAndDraw(previewImg);
+            detectBtn.disabled = false;
         }
 
         // ==========================================
-        // 3. 執行偵測 (核心邏輯 - 已修正為 320x320)
+        // 3. 核心邏輯：推論 + 後處理 + 繪圖
         // ==========================================
-        async function detectImage(imageElement) {
-            statusText.innerText = "偵測中...";
-            
-            // --- 設定：輸入尺寸 ---
-            // 修正：根據錯誤訊息，模型需要 320x320
-            const modelInputWidth = 320;
-            const modelInputHeight = 320;
+        async function detectAndDraw(imageElement) {
+            statusText.innerText = "AI 正在分析影像...";
+            const startTime = performance.now();
 
-            // 圖像預處理
-            const tfImg = tf.browser.fromPixels(imageElement)
-                .resizeNearestNeighbor([modelInputWidth, modelInputHeight]) // 縮放
+            // 準備 Canvas
+            const ctx = resultCanvas.getContext('2d');
+            // 設定 Canvas 大小與原始圖片一致，這樣畫出來的框位置才準
+            resultCanvas.width = imageElement.naturalWidth;
+            resultCanvas.height = imageElement.naturalHeight;
+            // 先將原始圖片畫到底層
+            ctx.drawImage(imageElement, 0, 0, resultCanvas.width, resultCanvas.height);
+
+            // --- (A) 圖像預處理 ---
+            let tfImg = tf.browser.fromPixels(imageElement)
+                .resizeNearestNeighbor([MODEL_INPUT_SIZE, MODEL_INPUT_SIZE])
                 .toFloat()
-                .div(tf.scalar(255.0)) // 正規化
-                .expandDims(); // 增加 batch 維度 [1, 320, 320, 3]
-
-            console.log(`Input Shape: ${tfImg.shape}`); 
+                .div(tf.scalar(255.0))
+                .expandDims();
 
             try {
-                // --- 推論 ---
-                const predictions = await model.executeAsync(tfImg);
-
-                // --- 取得結果 ---
-                // 處理單一輸出或多重輸出的情況
+                // --- (B) 模型推論 ---
+                // 修改了這裡：根據之前的警告，改用 execute (同步版) 即可
+                const predictions = model.execute(tfImg);
+                
+                // 處理輸出 Tensor
                 const outputTensor = Array.isArray(predictions) ? predictions[0] : predictions;
-                const output = outputTensor.squeeze(); // 移除 batch 維度
+                // outputTensor 形狀是 [1, 37, 2100]
+
+                // --- (C) 後處理 (Post-processing) ---
+                statusText.innerText = "正在處理數據並繪製結果...";
+
+                // 1. Squeeze: 移除 batch 維度 -> [37, 2100]
+                const squeezed = outputTensor.squeeze();
                 
-                console.log("Raw Output Shape:", output.shape);
-                statusText.innerText = `偵測完成！Output Shape: [${output.shape}] (詳細請看 Console)`;
+                // 2. Transpose: 轉置矩陣，變成 [2100, 37]，每一列代表一個框
+                // 這樣比較容易迭代處理
+                const transposed = squeezed.transpose([1, 0]);
+
+                // 3. 將 Tensor 數據下載到 CPU 的 JavaScript 陣列，準備進行迴圈處理
+                // 這是為了方便進行複雜的 NMS 前置作業
+                const boxesData = transposed.arraySync(); // 變成巨大的 JS 二維陣列
+
+                // 準備 NMS 需要的資料容器
+                const nmsBoxes = [];   // 存放 [y1, x1, y2, x2] 格式的框
+                const nmsScores = [];  // 存放信心分數
+                const nmsClasses = []; // 存放類別索引
                 
-                // 釋放記憶體
-                tf.dispose(tfImg);
-                tf.dispose(predictions);
-                if(Array.isArray(predictions)) {
-                    predictions.forEach(t => t.dispose());
-                } else {
-                    predictions.dispose();
+                // 迭代所有預測框 (2100 個)
+                for (let i = 0; i < boxesData.length; i++) {
+                    const data = boxesData[i];
+                    // data[0-3] 是座標 (cx, cy, w, h)
+                    // data[4-36] 是 33 個類別的機率
+
+                    // 找出機率最大的類別
+                    let maxScore = -Infinity;
+                    let classIndex = -1;
+                    // 從第 4 個位置開始遍歷類別機率
+                    for (let j = 4; j < data.length; j++) {
+                        if (data[j] > maxScore) {
+                            maxScore = data[j];
+                            classIndex = j - 4; // 修正索引，從 0 開始
+                        }
+                    }
+
+                    // 過濾：如果分數高於門檻，才納入候選
+                    if (maxScore > SCORE_THRESHOLD) {
+                        const [cx, cy, w, h] = data.slice(0, 4);
+
+                        // 座標轉換：從中點格式 (cx,cy,w,h) 轉為左上右下格式 (y1,x1,y2,x2)
+                        // 注意：TensorFlow.js NMS 要求的是 [y1, x1, y2, x2] 順序
+                        // 這裡的座標還是相對於 320x320 模型輸入的 (尚未正規化到 0-1)
+                        const y1 = cy - h / 2;
+                        const x1 = cx - w / 2;
+                        const y2 = cy + h / 2;
+                        const x2 = cx + w / 2;
+
+                        nmsBoxes.push([y1, x1, y2, x2]);
+                        nmsScores.push(maxScore);
+                        nmsClasses.push(classIndex);
+                    }
                 }
+
+                // 如果沒有任何框符合門檻
+                if (nmsBoxes.length === 0) {
+                    statusText.innerText = "未偵測到任何高於信心門檻的物件。";
+                } else {
+                    // 4. 執行 NMS (非極大值抑制)
+                    // 需要將 JS 陣列轉回 Tensor 才能給 NMS 函式用
+                    const nmsBoxesTensor = tf.tensor2d(nmsBoxes);
+                    const nmsScoresTensor = tf.tensor1d(nmsScores);
+
+                    // executeAsync 執行 NMS，回傳被保留下來的框的索引
+                    const selectedIndicesTensor = await tf.image.nonMaxSuppressionAsync(
+                        nmsBoxesTensor, 
+                        nmsScoresTensor, 
+                        20, // maxOutputSize: 最多保留幾個框
+                        IOU_THRESHOLD, 
+                        SCORE_THRESHOLD
+                    );
+                    
+                    // 取得選中框的索引陣列
+                    const selectedIndices = selectedIndicesTensor.dataSync();
+
+                    // --- (D) 繪圖 ---
+                    ctx.lineWidth = 3;
+                    ctx.font = "16px sans-serif";
+
+                    // 計算縮放比例：將 320x320 空間映射回原始圖片大小
+                    const scaleX = resultCanvas.width / MODEL_INPUT_SIZE;
+                    const scaleY = resultCanvas.height / MODEL_INPUT_SIZE;
+
+                    selectedIndices.forEach(idx => {
+                        const box = nmsBoxes[idx]; // [y1, x1, y2, x2] (在 320 空間)
+                        const score = nmsScores[idx];
+                        const classIdx = nmsClasses[idx];
+                        
+                        // 縮放回原始圖片座標
+                        const y1_pixel = box[0] * scaleY;
+                        const x1_pixel = box[1] * scaleX;
+                        const y2_pixel = box[2] * scaleY;
+                        const x2_pixel = box[3] * scaleX;
+                        
+                        const rectWidth = x2_pixel - x1_pixel;
+                        const rectHeight = y2_pixel - y1_pixel;
+
+                        // 產生隨機顏色 (每個類別不同顏色)
+                        const colorHue = (classIdx * 137.5) % 360;
+                        const color = `hsl(${colorHue}, 70%, 50%)`;
+
+                        // 畫框
+                        ctx.strokeStyle = color;
+                        ctx.strokeRect(x1_pixel, y1_pixel, rectWidth, rectHeight);
+                        // 畫半透明填充 (可選)
+                        ctx.fillStyle = `hsl(${colorHue}, 70%, 50%, 0.2)`;
+                        ctx.fillRect(x1_pixel, y1_pixel, rectWidth, rectHeight);
+
+                        // 畫標籤文字背景
+                        const className = CLASS_NAMES[classIdx] || `Class ${classIdx}`;
+                        const text = `${className} ${Math.round(score * 100)}%`;
+                        const textWidth = ctx.measureText(text).width;
+                        ctx.fillStyle = color;
+                        ctx.fillRect(x1_pixel, y1_pixel - 20, textWidth + 10, 20);
+
+                        // 畫文字
+                        ctx.fillStyle = "#ffffff";
+                        ctx.fillText(text, x1_pixel + 5, y1_pixel - 5);
+                    });
+
+                    const endTime = performance.now();
+                    statusText.innerText = `偵測完成！共找到 ${selectedIndices.length} 個物件 (耗時: ${Math.round(endTime - startTime)}ms)`;
+
+                    // 清理 NMS 相關 Tensor
+                    tf.dispose([nmsBoxesTensor, nmsScoresTensor, selectedIndicesTensor]);
+                }
+
+                // 顯示結果 Canvas
+                resultCanvas.style.display = 'block';
+                placeholderRight.style.display = 'none';
+
+                // 清理主 Tensor
+                tf.dispose([tfImg, outputTensor, squeezed, transposed]);
+                if(Array.isArray(predictions)) predictions.forEach(t => t.dispose());
+                else predictions.dispose();
 
             } catch (err) {
                 console.error("推論錯誤:", err);
                 statusText.innerText = "偵測發生錯誤：" + err.message;
+                statusText.style.color = "red";
                 tf.dispose(tfImg);
             }
         }
