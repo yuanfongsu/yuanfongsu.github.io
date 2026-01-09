@@ -3,15 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI 物件偵測系統 (左右對照版)</title>
+    <title>AI 淹水分割偵測 (Segmentation)</title>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
 
     <style>
-        /* --- 優雅風格設定 --- */
         body {
             font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
-            background-color: #fcfcfc; /* 稍微改一點背景色，讓白框更明顯 */
-            color: #333;
+            background-color: #2c3e50; /* 改深色背景，讓黃色線條更明顯 */
+            color: #ecf0f1;
             margin: 0;
             padding: 30px;
             display: flex;
@@ -20,123 +19,92 @@
             min-height: 100vh;
         }
 
-        h1 { font-weight: 300; margin-bottom: 10px; color: #2c3e50; }
+        h1 { font-weight: 300; margin-bottom: 10px; color: #f1c40f; }
 
         .main-container {
             width: 95%;
-            max-width: 900px; /* 加寬容器以容納兩個圖片 */
-            background: #fff;
+            max-width: 1000px;
+            background: #34495e;
             padding: 25px;
             border-radius: 12px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
             text-align: center;
         }
 
         .controls {
             margin: 20px 0;
-            display: flex; gap: 10px; justify-content: center;
+            display: flex; gap: 15px; justify-content: center;
         }
 
         button, input[type="file"]::file-selector-button {
-            background-color: #f8f9fa; border: 1px solid #e2e6ea;
-            border-radius: 6px; padding: 10px 20px; font-size: 14px;
-            cursor: pointer; transition: all 0.2s ease; color: #555;
+            background-color: #f1c40f; 
+            border: none;
+            border-radius: 6px; padding: 10px 25px; font-size: 15px; font-weight: bold;
+            cursor: pointer; transition: all 0.2s ease; color: #2c3e50;
         }
-        button:hover, input[type="file"]::file-selector-button:hover { background-color: #e9ecef; color: #333; }
-        button.primary { background-color: #333; color: #fff; border: none; }
-        button.primary:hover { background-color: #555; }
-        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        button:hover, input[type="file"]::file-selector-button:hover { background-color: #f39c12; }
+        button:disabled { background-color: #95a5a6; cursor: not-allowed; }
+        
+        input[type="file"]::file-selector-button { background-color: #bdc3c7; color: #2c3e50; }
 
-        .status { margin-top: 15px; font-size: 14px; color: #666; min-height: 20px; font-weight: 500;}
-
-        /* --- 新增：左右對照容器佈局 --- */
-        .comparison-container {
-            display: flex;
-            flex-wrap: wrap; /* 螢幕窄時自動換行 */
-            gap: 25px;
-            justify-content: center;
-            margin-top: 30px;
-        }
+        .status { margin-top: 15px; font-size: 14px; color: #bdc3c7; min-height: 20px; }
 
         .img-wrapper {
-            flex: 1; /* 平均分配空間 */
-            min-width: 250px; /* 最小寬度 */
-            max-width: 400px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
+            margin-top: 20px;
+            position: relative;
+            display: inline-block;
+            border: 3px solid #7f8c8d;
+            border-radius: 8px;
+            overflow: hidden;
+            background: #000;
+            max-width: 100%;
         }
 
-        .img-box {
-            width: 100%;
-            min-height: 200px;
-            border: 2px dashed #eee;
-            border-radius: 8px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            overflow: hidden;
-            padding: 10px;
-            background: #fafafa;
+        /* 讓 Canvas 疊在圖片上面 */
+        #container-box {
             position: relative;
         }
-        
-        .img-label { font-weight: bold; margin-bottom: 8px; color: #555; }
-
-        /* 確保預覽圖和 Canvas 大小一致且響應式 */
-        img#preview, canvas#result-canvas {
+        img#preview {
+            display: block;
             max-width: 100%;
-            max-height: 300px; /* 設定最大高度 */
-            object-fit: contain;
-            display: none; /* 預設隱藏 */
-            border-radius: 4px;
+            height: auto;
         }
-        canvas#result-canvas { box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-
+        canvas#result-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            pointer-events: none; /* 讓滑鼠事件穿透 */
+        }
     </style>
 </head>
 <body>
 
     <div class="main-container">
-        <h1>AI 物件偵測 (左右對照版)</h1>
-        <p style="color:#888; font-size: 0.9em;">上傳圖片後，模型將在右側標示出偵測結果</p>
+        <h1>AI 淹水區域分割 (Segmentation)</h1>
+        <p style="color:#bdc3c7; font-size: 0.9em;">系統將繪製出淹水區域的黃色邊界</p>
 
         <div class="controls">
             <input type="file" id="uploadInput" accept="image/*">
-            <button class="primary" id="detectBtn" onclick="runDetection()" disabled>開始偵測</button>
+            <button id="detectBtn" onclick="runDetection()" disabled>開始分析</button>
         </div>
 
-        <div class="status" id="statusText">等待模型載入...</div>
+        <div class="status" id="statusText">正在初始化 TensorFlow...</div>
 
-        <div class="comparison-container">
-            <div class="img-wrapper">
-                <div class="img-label">原始圖片</div>
-                <div class="img-box">
-                    <span id="placeholder-left" style="color: #ccc;">預覽圖</span>
-                    <img id="preview" alt="Original Image" />
-                </div>
+        <div class="img-wrapper">
+            <div id="container-box">
+                <img id="preview" />
+                <canvas id="result-canvas"></canvas>
             </div>
-
-            <div class="img-wrapper">
-                <div class="img-label">偵測結果</div>
-                <div class="img-box" id="result-box">
-                    <span id="placeholder-right" style="color: #ccc;">等待執行...</span>
-                    <canvas id="result-canvas"></canvas>
-                </div>
-            </div>
+            <div id="placeholder" style="padding: 50px; color: #7f8c8d;">請上傳圖片</div>
         </div>
     </div>
 
     <script>
         // ================= 設定區 =================
         const MODEL_URL = './best_web_model/model.json';
-        const MODEL_INPUT_SIZE = 320; // 模型要求的輸入大小
-        const SCORE_THRESHOLD = 0.35; // 信心分數門檻 (低於此分數不顯示)
-        const IOU_THRESHOLD = 0.45;   // NMS 重疊門檻 (數值越大，允許越多重疊框)
-        
-        // 【重要】請在此替換為您模型實際的類別名稱列表 (共 33 個)
-        // 這裡先產生 placeholder 名稱
-        const CLASS_NAMES = Array.from({length: 33}, (_, i) => `Class ${i}`);
+        const MODEL_INPUT_SIZE = 320; 
+        const CONFIDENCE_THRESHOLD = 0.45; // 信心門檻
+        const MASK_THRESHOLD = 0.5;        // 遮罩像素門檻 (大於此值視為淹水)
         // ==========================================
 
         let model;
@@ -145,224 +113,248 @@
         const previewImg = document.getElementById('preview');
         const resultCanvas = document.getElementById('result-canvas');
         const detectBtn = document.getElementById('detectBtn');
-        const placeholderLeft = document.getElementById('placeholder-left');
-        const placeholderRight = document.getElementById('placeholder-right');
+        const placeholder = document.getElementById('placeholder');
+        const containerBox = document.getElementById('container-box');
 
-        // 1. 載入模型
+        // Sigmoid 函數
+        const sigmoid = (x) => 1 / (1 + Math.exp(-x));
+
         async function loadModel() {
             try {
-                statusText.innerText = "正在載入模型 (首次載入較慢)...";
-                // 使用 loadGraphModel 載入 YOLO 轉換的模型
+                statusText.innerText = "正在載入分割模型...";
+                // 載入模型
                 model = await tf.loadGraphModel(MODEL_URL);
+                
+                // 預熱模型 (Warmup)
+                const dummy = tf.zeros([1, MODEL_INPUT_SIZE, MODEL_INPUT_SIZE, 3]);
+                model.execute(dummy);
+                tf.dispose(dummy);
+
                 console.log("模型載入成功");
                 statusText.innerText = "模型準備就緒，請上傳圖片。";
                 detectBtn.disabled = false;
             } catch (error) {
-                console.error("模型載入失敗:", error);
-                statusText.innerText = `錯誤：無法載入模型。請檢查路徑 '${MODEL_URL}' 是否正確。`;
-                statusText.style.color = "red";
+                console.error("載入失敗:", error);
+                statusText.innerText = "錯誤：無法載入模型，請確認路徑或檔案格式。";
+                statusText.style.color = "#e74c3c";
             }
         }
         loadModel();
 
-        // 2. 處理圖片上傳
         uploadInput.addEventListener('change', (event) => {
             const file = event.target.files[0];
             if (file) {
                 const reader = new FileReader();
                 reader.onload = (e) => {
                     previewImg.src = e.target.result;
-                    previewImg.style.display = 'block';
-                    placeholderLeft.style.display = 'none';
+                    placeholder.style.display = 'none';
                     
-                    // 重置右側結果
-                    resultCanvas.style.display = 'none';
-                    placeholderRight.style.display = 'block';
-                    statusText.innerText = "圖片已載入，請點擊「開始偵測」";
+                    // 清除舊 Canvas
+                    const ctx = resultCanvas.getContext('2d');
+                    ctx.clearRect(0, 0, resultCanvas.width, resultCanvas.height);
+                    
+                    statusText.innerText = "圖片已載入";
                 };
                 reader.readAsDataURL(file);
             }
         });
 
-        // 按鈕觸發
         async function runDetection() {
             if (!model || !previewImg.src) return;
             detectBtn.disabled = true;
+            statusText.innerText = "正在進行語意分割分析...";
+            
+            // 設定 Canvas 尺寸與圖片一致
+            resultCanvas.width = previewImg.naturalWidth;
+            resultCanvas.height = previewImg.naturalHeight;
+
             await detectAndDraw(previewImg);
             detectBtn.disabled = false;
         }
 
-        // ==========================================
-        // 3. 核心邏輯：推論 + 後處理 + 繪圖
-        // ==========================================
+        // ===============================================
+        // 核心邏輯：分割遮罩處理
+        // ===============================================
         async function detectAndDraw(imageElement) {
-            statusText.innerText = "AI 正在分析影像...";
             const startTime = performance.now();
 
-            // 準備 Canvas
-            const ctx = resultCanvas.getContext('2d');
-            // 設定 Canvas 大小與原始圖片一致，這樣畫出來的框位置才準
-            resultCanvas.width = imageElement.naturalWidth;
-            resultCanvas.height = imageElement.naturalHeight;
-            // 先將原始圖片畫到底層
-            ctx.drawImage(imageElement, 0, 0, resultCanvas.width, resultCanvas.height);
-
-            // --- (A) 圖像預處理 ---
-            let tfImg = tf.browser.fromPixels(imageElement)
+            // 1. 預處理
+            const tfImg = tf.browser.fromPixels(imageElement)
                 .resizeNearestNeighbor([MODEL_INPUT_SIZE, MODEL_INPUT_SIZE])
                 .toFloat()
                 .div(tf.scalar(255.0))
                 .expandDims();
 
             try {
-                // --- (B) 模型推論 ---
-                // 修改了這裡：根據之前的警告，改用 execute (同步版) 即可
-                const predictions = model.execute(tfImg);
+                // 2. 推論 (Inference)
+                const results = model.execute(tfImg);
                 
-                // 處理輸出 Tensor
-                const outputTensor = Array.isArray(predictions) ? predictions[0] : predictions;
-                // outputTensor 形狀是 [1, 37, 2100]
-
-                // --- (C) 後處理 (Post-processing) ---
-                statusText.innerText = "正在處理數據並繪製結果...";
-
-                // 1. Squeeze: 移除 batch 維度 -> [37, 2100]
-                const squeezed = outputTensor.squeeze();
+                // YOLOv8-seg 通常會回傳兩個 Tensor，或者是陣列
+                // Output 0: [1, 37, 2100] -> (Box + Class + Mask Coeffs)
+                // Output 1: [1, 32, 80, 80] 或 [1, 32, 160, 160] -> (Mask Prototypes)
                 
-                // 2. Transpose: 轉置矩陣，變成 [2100, 37]，每一列代表一個框
-                // 這樣比較容易迭代處理
-                const transposed = squeezed.transpose([1, 0]);
+                let output0, output1;
+                if (Array.isArray(results)) {
+                    // 通常 Prototype mask 是比較小的那個 tensor (dimension 4)
+                    // 或者根據形狀判斷
+                    if (results[0].shape.length === 3) {
+                        output0 = results[0];
+                        output1 = results[1];
+                    } else {
+                        output0 = results[1];
+                        output1 = results[0];
+                    }
+                } else {
+                    // 如果是 Dictionary (物件)，嘗試用常見名稱抓取
+                    // 但通常 execute 回傳的是 Array 或 Tensor
+                    console.error("未預期的輸出格式，請檢查 Console");
+                    console.log(results);
+                    return;
+                }
 
-                // 3. 將 Tensor 數據下載到 CPU 的 JavaScript 陣列，準備進行迴圈處理
-                // 這是為了方便進行複雜的 NMS 前置作業
-                const boxesData = transposed.arraySync(); // 變成巨大的 JS 二維陣列
+                console.log(`Main Output: ${output0.shape}, Proto Output: ${output1.shape}`);
 
-                // 準備 NMS 需要的資料容器
-                const nmsBoxes = [];   // 存放 [y1, x1, y2, x2] 格式的框
-                const nmsScores = [];  // 存放信心分數
-                const nmsClasses = []; // 存放類別索引
-                
-                // 迭代所有預測框 (2100 個)
+                // 3. 解析 Main Output (Box + Score + Coeffs)
+                const squeezed = output0.squeeze(); // [37, 2100]
+                const transposed = squeezed.transpose([1, 0]); // [2100, 37]
+                const boxesData = await transposed.array();
+
+                // 尋找最佳框 (Max Score)
+                let maxScore = -Infinity;
+                let bestIdx = -1;
+
                 for (let i = 0; i < boxesData.length; i++) {
                     const data = boxesData[i];
-                    // data[0-3] 是座標 (cx, cy, w, h)
-                    // data[4-36] 是 33 個類別的機率
+                    // data[4] 是類別分數
+                    let score = data[4]; 
+                    if (score > 1.0) score = sigmoid(score); // 修正 Logits
 
-                    // 找出機率最大的類別
-                    let maxScore = -Infinity;
-                    let classIndex = -1;
-                    // 從第 4 個位置開始遍歷類別機率
-                    for (let j = 4; j < data.length; j++) {
-                        if (data[j] > maxScore) {
-                            maxScore = data[j];
-                            classIndex = j - 4; // 修正索引，從 0 開始
+                    if (score > maxScore) {
+                        maxScore = score;
+                        bestIdx = i;
+                    }
+                }
+
+                if (bestIdx !== -1 && maxScore > CONFIDENCE_THRESHOLD) {
+                    const bestData = boxesData[bestIdx];
+                    
+                    // 取得遮罩係數 (最後 32 個數值)
+                    // data: [x, y, w, h, score, mask_coef_0 ... mask_coef_31]
+                    const maskCoeffs = bestData.slice(5, 5 + 32); 
+                    
+                    // --- 4. 產生遮罩 (Mask Generation) ---
+                    // 運算公式: Mask = Sigmoid( Proto * Coeffs )
+                    
+                    // 準備矩陣
+                    const coeffsTensor = tf.tensor2d(maskCoeffs, [32, 1]); // [32, 1]
+                    const protoTensor = output1.squeeze(); // [32, 160, 160] (假設是 160x160)
+                    
+                    const [protoChannels, protoH, protoW] = protoTensor.shape;
+                    
+                    // Reshape Proto for MatMul: [32, 160*160]
+                    const protoReshaped = protoTensor.reshape([protoChannels, protoH * protoW]);
+                    
+                    // 矩陣相乘: [1, 32] x [32, 25600] = [1, 25600] (注意轉置)
+                    // 這裡用: (Proto^T x Coeffs)^T 比較直觀，或者手動調整維度
+                    // 簡單做法: [160*160, 32] x [32, 1] = [160*160, 1]
+                    const protoT = protoReshaped.transpose(); // [25600, 32]
+                    const maskFlat = protoT.matMul(coeffsTensor); // [25600, 1]
+                    
+                    // Sigmoid 激活
+                    const maskActivated = tf.sigmoid(maskFlat);
+                    
+                    // 重塑回 2D 圖片
+                    const maskImg = maskActivated.reshape([protoH, protoW]); // [160, 160]
+
+                    // --- 5. 繪製到 Canvas ---
+                    // 將 Tensor 轉為像素數據並放大到原圖尺寸
+                    // 為了追求效能，我們在這裡使用 tf.browser.toPixels 畫到一個隱藏的 canvas，再放大
+                    
+                    const maskCanvas = document.createElement('canvas');
+                    maskCanvas.width = protoW;
+                    maskCanvas.height = protoH;
+                    await tf.browser.toPixels(maskImg, maskCanvas); // 這會畫出黑白圖
+
+                    const ctx = resultCanvas.getContext('2d');
+                    
+                    // 建立一個離屏 Canvas 來處理縮放後的遮罩
+                    const tempCanvas = document.createElement('canvas');
+                    tempCanvas.width = resultCanvas.width;
+                    tempCanvas.height = resultCanvas.height;
+                    const tempCtx = tempCanvas.getContext('2d');
+
+                    // 將 160x160 的遮罩拉伸到原圖大小 (使用平滑插值)
+                    tempCtx.imageSmoothingEnabled = true; 
+                    tempCtx.drawImage(maskCanvas, 0, 0, tempCanvas.width, tempCanvas.height);
+                    
+                    // 取得原圖大小的像素資料
+                    const imgData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+                    const pixels = imgData.data; // RGBA 陣列
+
+                    // --- 6. 邊緣偵測與著色 (Edge Detection) ---
+                    // 我們要直接修改 ImageData 來畫黃色邊界
+                    // 演算法：如果當前像素是淹水，且上下左右有一個鄰居不是淹水，則此點為邊界
+
+                    const width = tempCanvas.width;
+                    const height = tempCanvas.height;
+                    
+                    // 建立一個新的 ImageData 給最終輸出
+                    const outputData = ctx.createImageData(width, height);
+                    const outPixels = outputData.data;
+
+                    for (let y = 1; y < height - 1; y++) {
+                        for (let x = 1; x < width - 1; x++) {
+                            const i = (y * width + x) * 4;
+                            // 檢查 Red 通道 (黑白圖 R=G=B)，大於 128 (0.5) 視為淹水
+                            const isMask = pixels[i] > 100; 
+
+                            if (isMask) {
+                                // 檢查上下左右鄰居
+                                const up = pixels[((y-1) * width + x) * 4] > 100;
+                                const down = pixels[((y+1) * width + x) * 4] > 100;
+                                const left = pixels[(y * width + (x-1)) * 4] > 100;
+                                const right = pixels[(y * width + (x+1)) * 4] > 100;
+
+                                if (!up || !down || !left || !right) {
+                                    // 這是邊界！畫不透明黃色
+                                    outPixels[i] = 255;     // R
+                                    outPixels[i+1] = 215;   // G (Gold)
+                                    outPixels[i+2] = 0;     // B
+                                    outPixels[i+3] = 255;   // Alpha
+                                } else {
+                                    // 這是內部，畫半透明黃色 (或者不畫，看您需求)
+                                    // 為了模仿 Colab 效果，內部稍微塗一點顏色
+                                    outPixels[i] = 255;
+                                    outPixels[i+1] = 215;
+                                    outPixels[i+2] = 0;
+                                    outPixels[i+3] = 30; // 很淡的透明度
+                                }
+                            }
                         }
                     }
 
-                    // 過濾：如果分數高於門檻，才納入候選
-                    if (maxScore > SCORE_THRESHOLD) {
-                        const [cx, cy, w, h] = data.slice(0, 4);
-
-                        // 座標轉換：從中點格式 (cx,cy,w,h) 轉為左上右下格式 (y1,x1,y2,x2)
-                        // 注意：TensorFlow.js NMS 要求的是 [y1, x1, y2, x2] 順序
-                        // 這裡的座標還是相對於 320x320 模型輸入的 (尚未正規化到 0-1)
-                        const y1 = cy - h / 2;
-                        const x1 = cx - w / 2;
-                        const y2 = cy + h / 2;
-                        const x2 = cx + w / 2;
-
-                        nmsBoxes.push([y1, x1, y2, x2]);
-                        nmsScores.push(maxScore);
-                        nmsClasses.push(classIndex);
-                    }
-                }
-
-                // 如果沒有任何框符合門檻
-                if (nmsBoxes.length === 0) {
-                    statusText.innerText = "未偵測到任何高於信心門檻的物件。";
-                } else {
-                    // 4. 執行 NMS (非極大值抑制)
-                    // 需要將 JS 陣列轉回 Tensor 才能給 NMS 函式用
-                    const nmsBoxesTensor = tf.tensor2d(nmsBoxes);
-                    const nmsScoresTensor = tf.tensor1d(nmsScores);
-
-                    // executeAsync 執行 NMS，回傳被保留下來的框的索引
-                    const selectedIndicesTensor = await tf.image.nonMaxSuppressionAsync(
-                        nmsBoxesTensor, 
-                        nmsScoresTensor, 
-                        20, // maxOutputSize: 最多保留幾個框
-                        IOU_THRESHOLD, 
-                        SCORE_THRESHOLD
-                    );
-                    
-                    // 取得選中框的索引陣列
-                    const selectedIndices = selectedIndicesTensor.dataSync();
-
-                    // --- (D) 繪圖 ---
-                    ctx.lineWidth = 3;
-                    ctx.font = "16px sans-serif";
-
-                    // 計算縮放比例：將 320x320 空間映射回原始圖片大小
-                    const scaleX = resultCanvas.width / MODEL_INPUT_SIZE;
-                    const scaleY = resultCanvas.height / MODEL_INPUT_SIZE;
-
-                    selectedIndices.forEach(idx => {
-                        const box = nmsBoxes[idx]; // [y1, x1, y2, x2] (在 320 空間)
-                        const score = nmsScores[idx];
-                        const classIdx = nmsClasses[idx];
-                        
-                        // 縮放回原始圖片座標
-                        const y1_pixel = box[0] * scaleY;
-                        const x1_pixel = box[1] * scaleX;
-                        const y2_pixel = box[2] * scaleY;
-                        const x2_pixel = box[3] * scaleX;
-                        
-                        const rectWidth = x2_pixel - x1_pixel;
-                        const rectHeight = y2_pixel - y1_pixel;
-
-                        // 產生隨機顏色 (每個類別不同顏色)
-                        const colorHue = (classIdx * 137.5) % 360;
-                        const color = `hsl(${colorHue}, 70%, 50%)`;
-
-                        // 畫框
-                        ctx.strokeStyle = color;
-                        ctx.strokeRect(x1_pixel, y1_pixel, rectWidth, rectHeight);
-                        // 畫半透明填充 (可選)
-                        ctx.fillStyle = `hsl(${colorHue}, 70%, 50%, 0.2)`;
-                        ctx.fillRect(x1_pixel, y1_pixel, rectWidth, rectHeight);
-
-                        // 畫標籤文字背景
-                        const className = CLASS_NAMES[classIdx] || `Class ${classIdx}`;
-                        const text = `${className} ${Math.round(score * 100)}%`;
-                        const textWidth = ctx.measureText(text).width;
-                        ctx.fillStyle = color;
-                        ctx.fillRect(x1_pixel, y1_pixel - 20, textWidth + 10, 20);
-
-                        // 畫文字
-                        ctx.fillStyle = "#ffffff";
-                        ctx.fillText(text, x1_pixel + 5, y1_pixel - 5);
-                    });
+                    // 將處理好的邊界圖畫上去
+                    ctx.putImageData(outputData, 0, 0);
 
                     const endTime = performance.now();
-                    statusText.innerText = `偵測完成！共找到 ${selectedIndices.length} 個物件 (耗時: ${Math.round(endTime - startTime)}ms)`;
+                    statusText.innerText = `分析完成！信心分數: ${Math.round(maxScore*100)}% (耗時 ${Math.round(endTime - startTime)}ms)`;
 
-                    // 清理 NMS 相關 Tensor
-                    tf.dispose([nmsBoxesTensor, nmsScoresTensor, selectedIndicesTensor]);
+                    // 清理
+                    tf.dispose([coeffsTensor, protoTensor, protoReshaped, protoT, maskFlat, maskActivated, maskImg]);
+
+                } else {
+                    statusText.innerText = "未偵測到明顯的淹水區域。";
                 }
 
-                // 顯示結果 Canvas
-                resultCanvas.style.display = 'block';
-                placeholderRight.style.display = 'none';
-
-                // 清理主 Tensor
-                tf.dispose([tfImg, outputTensor, squeezed, transposed]);
-                if(Array.isArray(predictions)) predictions.forEach(t => t.dispose());
-                else predictions.dispose();
+                // 清理
+                tf.dispose(results);
+                tf.dispose(tfImg);
+                tf.dispose(transposed);
+                tf.dispose(squeezed);
 
             } catch (err) {
-                console.error("推論錯誤:", err);
-                statusText.innerText = "偵測發生錯誤：" + err.message;
-                statusText.style.color = "red";
+                console.error(err);
+                statusText.innerText = "運算錯誤：" + err.message;
                 tf.dispose(tfImg);
             }
         }
