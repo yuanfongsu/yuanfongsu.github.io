@@ -3,23 +3,23 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>基隆市 CCTV 淹水全域監控儀表板 (Local Python)</title>
+    <title>基隆市 CCTV 淹水全域監控儀表板</title>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
     
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f0f2f5; margin: 0; padding: 20px; }
         
         .header {
-            text-align: center; margin-bottom: 30px;
-            background: white; padding: 20px; border-radius: 12px;
+            text-align: center; margin-bottom: 20px;
+            background: white; padding: 15px; border-radius: 12px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.05);
         }
-        h1 { margin: 0; color: #2c3e50; font-weight: 300; }
-        .stats { color: #7f8c8d; margin-top: 10px; font-size: 14px; font-weight: bold; }
+        h1 { margin: 0; color: #2c3e50; font-weight: 300; font-size: 24px; }
+        .stats { color: #7f8c8d; margin-top: 5px; font-size: 13px; font-weight: bold; }
         
         .controls { text-align: center; margin-bottom: 20px; }
         button {
-            padding: 12px 24px; font-size: 16px; border: none; border-radius: 6px;
+            padding: 8px 16px; font-size: 14px; border: none; border-radius: 6px;
             cursor: pointer; background-color: #3498db; color: white; font-weight: bold;
             transition: all 0.3s; box-shadow: 0 4px 6px rgba(52, 152, 219, 0.2);
         }
@@ -28,28 +28,35 @@
         
         .grid-container {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-            gap: 20px;
+            /* 修改 1: 寬度從 320px 縮小為 160px */
+            grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+            gap: 10px; /* 間距縮小 */
         }
         
         .card {
-            background: white; border-radius: 10px; overflow: hidden;
+            background: white; border-radius: 8px; overflow: hidden;
             box-shadow: 0 2px 8px rgba(0,0,0,0.08);
             display: flex; flex-direction: column;
             border: 1px solid #eee;
         }
         
         .card-header {
-            padding: 12px 15px; border-bottom: 1px solid #f0f0f0;
+            padding: 8px 10px; border-bottom: 1px solid #f0f0f0;
             display: flex; justify-content: space-between; align-items: center;
             background: #fdfdfd;
         }
-        .card-title { font-weight: bold; font-size: 14px; color: #333; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; max-width: 220px; }
-        .card-id { font-size: 11px; color: #999; background: #eee; padding: 2px 6px; border-radius: 4px; }
+        /* 修改: 調整標題最大寬度與字體以適應縮小的卡片 */
+        .card-title { 
+            font-weight: bold; font-size: 12px; color: #333; 
+            overflow: hidden; white-space: nowrap; text-overflow: ellipsis; 
+            max-width: 100px; 
+        }
+        .card-id { font-size: 10px; color: #999; background: #eee; padding: 1px 4px; border-radius: 4px; }
         
         .card-body {
             position: relative;
-            height: 240px;
+            /* 修改 2: 高度從 240px 縮小為 120px */
+            height: 120px;
             background-color: #eee;
             display: flex; align-items: center; justify-content: center;
         }
@@ -60,9 +67,9 @@
             display: none;
         }
         
-        .placeholder { color: #aaa; font-size: 13px; display: flex; flex-direction: column; align-items: center; }
+        .placeholder { color: #aaa; font-size: 11px; display: flex; flex-direction: column; align-items: center; }
         
-        .status-bar { padding: 8px 15px; font-size: 13px; font-weight: bold; text-align: center; border-top: 1px solid #eee; }
+        .status-bar { padding: 4px 0; font-size: 11px; font-weight: bold; text-align: center; border-top: 1px solid #eee; }
         .status-waiting { background-color: #f8f9fa; color: #7f8c8d; }
         .status-scanning { background-color: #fff3cd; color: #856404; }
         .status-safe { background-color: #d4edda; color: #155724; }
@@ -84,7 +91,7 @@
             <span style="color:#c0392b">● 淹水: <span id="flood-count">0</span></span> | 
             <span style="color:#7f8c8d">● 待機: <span id="waiting-count">0</span></span>
         </div>
-        <div id="model-status" style="margin-top:10px; font-weight:bold; color:#e67e22;">正在載入 AI 模型...</div>
+        <div id="model-status" style="margin-top:5px; font-size:12px; font-weight:bold; color:#e67e22;">正在載入 AI 模型...</div>
     </div>
 
     <div class="controls">
@@ -107,7 +114,7 @@
         // ================= 2. CONFIG =================
         const MODEL_URL = './best_web_model/model.json';
         const MODEL_INPUT_SIZE = 320; 
-        const CONFIDENCE_THRESHOLD = 0.3; 
+        const CONFIDENCE_THRESHOLD = 0.8; 
         const LINE_THICKNESS = 2;
         
         // ================= 3. STATE =================
@@ -131,7 +138,7 @@
                 
                 card.innerHTML = `
                     <div class="card-header">
-                        <span class="card-title">${cctv.name}</span>
+                        <span class="card-title" title="${cctv.name}">${cctv.name}</span>
                         <span class="card-id">${cctv.id}</span>
                     </div>
                     <div class="card-body" id="body-${index}">
@@ -202,7 +209,7 @@
             try {
                 const processorImg = document.getElementById('processor-img');
                 
-                // 【關鍵修改】使用 Python Local Proxy
+                // 使用 Python Local Proxy
                 await loadImage(processorImg, cctv.url);
                 
                 // Run Inference
@@ -236,7 +243,7 @@
             
             if (status === 'scanning') {
                 statusBar.classList.add('status-scanning');
-                statusBar.innerText = "掃描分析中...";
+                statusBar.innerText = "掃描中...";
             } else if (status === 'safe') {
                 statusBar.classList.add('status-safe');
                 statusBar.innerText = "✔ 安全";
@@ -261,7 +268,7 @@
             document.getElementById('waiting-count').innerText = Math.max(0, stats.waiting);
         }
 
-        // 【關鍵修改】強制使用本機 Python Proxy
+        // 強制使用本機 Python Proxy
         function loadImage(img, url) {
             return new Promise((resolve, reject) => {
                 const LOCAL_PROXY = "http://localhost:5000/proxy?url=";
