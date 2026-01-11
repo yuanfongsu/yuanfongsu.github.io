@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>全台 CCTV 智慧淹水偵測平台</title>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" />
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <style>
+        body { margin: 0; display: flex; height: 100vh; background: #0f172a; color: white; font-family: 'Microsoft JhengHei', sans-serif; overflow: hidden; }
+        #sidebar { width: 400px; display: flex; flex-direction: column; background: #1e293b; border-right: 1px solid #334155; z-index: 1000; box-shadow: 4px 0 15px rgba(0,0,0,0.5); }
+        #map { flex-grow: 1; z-index: 1; }
+        
+        .leaflet-control-layers { background: #1e293b; color: #ccc; border: 1px solid #475569; border-radius: 8px; }
+        .leaflet-control-layers-expanded { padding: 10px; }
+        .safe-dot { background: #10b981; border: 2px solid white; border-radius: 50%; box-shadow: 0 2px 4px rgba(0,0,0,0.3); }
+        .offline-dot { background: #64748b; border: 2px solid #cbd5e1; border-radius: 50%; }
+        .radar-ring { border: 3px solid #ef4444; border-radius: 50%; animation: radar-ping 1.5s infinite; opacity: 0; }
+        @keyframes radar-ping { 0% { transform: scale(0.1); opacity: 1; } 75% { transform: scale(3); opacity: 0; } 100% { transform: scale(3); opacity: 0; } }
+        
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #1e293b; }
+        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
+    </style>
+</head>
+<body>
+
+    <div id="sidebar">
+        <div class="p-4 border-b border-gray-700 bg-gray-900 shadow-md">
+            <h1 class="text-lg font-bold text-blue-400 flex items-center gap-2">🌊 全台 CCTV 智慧淹水偵測</h1>
+            <p class="text-[10px] text-gray-400 mt-0.5">Model: YOLOv8n-Seg</p>
+        </div>
+
+        <div class="p-3 space-y-3 bg-gray-800 border-b border-gray-700">
+            
+            <div>
+                <label class="block text-xs font-bold text-gray-400 mb-1">1. CCTV站數</label>
+                <div id="station-count" class="text-sm text-yellow-400 font-mono bg-gray-900 p-1.5 rounded border border-gray-700 text-center">
+                    ⏳ 讀取中...
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-xs font-bold text-gray-400 mb-1">2. 選擇縣市</label>
+                <select id="county-select" disabled class="w-full bg-gray-700 border border-gray-600 text-white text-sm rounded p-1.5 focus:ring-blue-500 disabled:opacity-50">
+                    <option value="">等待資料載入...</option>
+                </select>
+            </div>
+
+            <button id="btn-run" disabled onclick="startBatchAnalysis()" class="w-full bg-indigo-600 hover:bg-indigo-500 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-bold py-2 px-4 rounded transition flex justify-center items-center gap-2 shadow-lg text-sm">
+                <span>開始 YOLO 掃描</span>
+            </button>
+
+            <div id="progress-container" class="hidden">
+                <div class="flex justify-between text-[10px] text-gray-400 mb-1">
+                    <span id="progress-status">掃描中...</span>
+                    <span id="progress-text">0%</span>
+                </div>
+                <div class="w-full bg-gray-700 rounded-full h-2 overflow-hidden">
+                    <div id="progress-bar" class="bg-blue-500 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
+                </div>
+            </div>
+
+            <div id="summary-panel" class="hidden mt-1 p-2 bg-gray-700/50 rounded border border-gray-600 animate-fade-in">
+                <div class="text-[11px] font-bold text-gray-300 border-b border-gray-600 pb-1 mb-1 flex justify-between">
+                    <span>📊 摘要</span>
+                    <span id="time-taken" class="text-gray-400 font-mono"></span>
+                </div>
+                <div class="grid grid-cols-2 gap-y-1 gap-x-2 text-[11px]">
+                    <div class="text-gray-400">📡 總站數:</div>
+                    <div id="sum-total" class="text-right font-mono text-white font-bold">-</div>
+                    
+                    <div class="text-gray-400">🖼️ 成功:</div>
+                    <div id="sum-success" class="text-right font-mono text-green-400">-</div>
+                    
+                    <div class="text-gray-400">❌ 無回應:</div>
+                    <div id="sum-offline" class="text-right font-mono text-gray-500">-</div>
+                    
+                    <div class="text-gray-400">⚠️ 淹水:</div>
+                    <div id="sum-flood" class="text-right font-mono text-red-400 font-bold">-</div>
+                    
+                    <div class="text-gray-400">✅ 安全:</div>
+                    <div id="sum-safe" class="text-right font-mono text-blue-400">-</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex-grow overflow-y-auto p-3 bg-gray-900" id="alert-panel">
+            <div class="flex justify-between items-center mb-3 sticky top-0 bg-gray-900 py-1 z-10 border-b border-gray-800">
+                <h2 class="text-sm font-bold text-red-400 flex items-center gap-2">🚨 淹水警報列表</h2>
+                <span id="flood-count" class="bg-red-900 text-red-100 text-[10px] px-2 py-0.5 rounded-full">0</span>
+            </div>
+            <div id="alert-list" class="space-y-3 text-center text-gray-600 text-xs mt-4">
+                <p>請選擇縣市並開始掃描</p>
+            </div>
+        </div>
+    </div>
+
+    <div id="map"></div>
+
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
+
+    <script>
+        const darkLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { attribution: '&copy; CARTO', maxZoom: 19 });
+        const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap', maxZoom: 19 });
+        const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: '&copy; Esri', maxZoom: 19 });
+
+        const map = L.map('map', { zoomControl: false, layers: [satelliteLayer] }).setView([23.97565, 120.9738819], 7);
+        L.control.layers({ "衛星影像": satelliteLayer, "深色模式": darkLayer, "標準街道": osmLayer }, null, { position: 'topright' }).addTo(map);
+        L.control.zoom({position: 'topright'}).addTo(map);
+        
+        const markersGroup = L.markerClusterGroup({ disableClusteringAtZoom: 14, maxClusterRadius: 50 });
+        map.addLayer(markersGroup);
+
+        let allData = [];
+        let currentStations = [];
+        let stationMarkers = {}; 
+        let isProcessing = false;
+
+        window.addEventListener('DOMContentLoaded', async () => { await loadCSVFromBackend(); });
+
+        async function loadCSVFromBackend() {
+            const countDiv = document.getElementById('station-count');
+            try {
+                const response = await fetch('http://127.0.0.1:5000/get_csv');
+                if (!response.ok) throw new Error("Connection failed");
+                const csvText = await response.text();
+                Papa.parse(csvText, {
+                    header: true, skipEmptyLines: true,
+                    complete: function(results) {
+                        allData = results.data.filter(r => r['經度'] && r['緯度'] && r['COUNTYNAME']);
+                        
+                        if (allData.length === 0) { 
+                            countDiv.innerHTML = "<span class='text-red-400'>❌ 無資料</span>"; 
+                            return; 
+                        }
+                        
+                        // 【修改點】更新總站數顯示
+                        countDiv.className = "text-sm text-green-400 font-mono bg-gray-900 p-1.5 rounded border border-gray-700 text-center";
+                        countDiv.innerText = `✅ 共 ${allData.length} 站`;
+
+                        const select = document.getElementById('county-select');
+                        select.innerHTML = '<option value="">-- 請選擇縣市 --</option>';
+                        [...new Set(allData.map(d => d['COUNTYNAME']))].sort().forEach(c => select.innerHTML += `<option value="${c}">${c}</option>`);
+                        select.disabled = false;
+                    }
+                });
+            } catch (err) { 
+                console.error(err);
+                countDiv.innerHTML = "<span class='text-red-500'>⚠️ 連線失敗</span>";
+            }
+        }
+
+        document.getElementById('county-select').addEventListener('change', function(e) {
+            const county = e.target.value;
+            if (!county) return;
+            currentStations = allData.filter(d => d['COUNTYNAME'] === county);
+            markersGroup.clearLayers();
+            stationMarkers = {};
+            document.getElementById('alert-list').innerHTML = "";
+            document.getElementById('flood-count').innerText = "0";
+            document.getElementById('summary-panel').classList.add('hidden');
+            
+            currentStations.forEach(s => {
+                const id = s['CCTVID'] || Math.random().toString(36);
+                s._tempID = id;
+                const marker = L.circleMarker([s['緯度'], s['經度']], { radius: 6, fillColor: "#3b82f6", color: "#fff", weight: 1, fillOpacity: 0.8 });
+                marker.bindPopup(`<b>${s['道路名稱']}</b><br><span style="font-size:12px; color:#ccc">${s['位置描述']}</span><br><span style="font-size:11px; color:#666;">座標: ${s['經度']}, ${s['緯度']}</span>`);
+                markersGroup.addLayer(marker);
+                stationMarkers[id] = marker;
+            });
+            if (currentStations.length > 0) map.fitBounds(markersGroup.getBounds());
+            document.getElementById('btn-run').disabled = false;
+            document.getElementById('btn-run').innerHTML = `🚀 掃描 ${county} (${currentStations.length} 站)`;
+        });
+
+        async function startBatchAnalysis() {
+            if (isProcessing) return;
+            isProcessing = true;
+            document.getElementById('btn-run').disabled = true;
+            document.getElementById('progress-container').classList.remove('hidden');
+            document.getElementById('summary-panel').classList.add('hidden');
+            
+            const startTime = Date.now();
+            const confValue = 0.8; 
+            
+            let processed = 0;
+            let floodCount = 0;
+            let successCount = 0;
+            let offlineCount = 0;
+            const BATCH = 5;
+
+            for (let i = 0; i < currentStations.length; i += BATCH) {
+                const batch = currentStations.slice(i, i + BATCH);
+                await Promise.all(batch.map(async (station) => {
+                    try {
+                        const url = `http://127.0.0.1:5000/detect?url=${encodeURIComponent(station['VideoImageURL'])}&conf=${confValue}`;
+                        const res = await fetch(url);
+                        const result = await res.json();
+                        if (result.status === "success") {
+                            successCount++;
+                            updateMarker(station, result);
+                            if (result.is_flooded) { floodCount++; addAlertCard(station, result); }
+                        } else { offlineCount++; markOffline(station); }
+                    } catch (e) { offlineCount++; markOffline(station); }
+                }));
+                processed += batch.length;
+                const pct = Math.min(100, Math.round((processed / currentStations.length) * 100));
+                document.getElementById('progress-bar').style.width = `${pct}%`;
+                document.getElementById('progress-text').innerText = `${pct}%`;
+                document.getElementById('flood-count').innerText = floodCount;
+            }
+            isProcessing = false;
+            document.getElementById('btn-run').disabled = false;
+            
+            const endTime = Date.now();
+            const duration = ((endTime - startTime) / 1000).toFixed(1);
+            document.getElementById('btn-run').innerHTML = `✅ 掃描完成`;
+
+            document.getElementById('sum-total').innerText = currentStations.length;
+            document.getElementById('sum-success').innerText = successCount;
+            document.getElementById('sum-offline').innerText = offlineCount;
+            document.getElementById('sum-flood').innerText = floodCount;
+            document.getElementById('sum-safe').innerText = successCount - floodCount;
+            document.getElementById('time-taken').innerText = `${duration}s`;
+            
+            document.getElementById('summary-panel').classList.remove('hidden');
+        }
+
+        function updateMarker(station, result) {
+            const oldMarker = stationMarkers[station._tempID];
+            if (oldMarker) markersGroup.removeLayer(oldMarker);
+
+            let newMarker;
+            if (result.is_flooded) {
+                const redPinIcon = L.divIcon({
+                    html: `<svg viewBox="0 0 24 24" fill="#ef4444" stroke="white" stroke-width="2" width="36" height="36" style="filter: drop-shadow(0 4px 6px rgba(0,0,0,0.5));"><path d="M12 0C7 0 3 4 3 9c0 5 9 15 9 15s9-10 9-15c0-5-4-9-9-9z"/><circle cx="12" cy="9" r="3.5" fill="white"/></svg>`,
+                    className: '', iconSize: [36, 54], iconAnchor: [18, 54], popupAnchor: [0, -50]
+                });
+                newMarker = L.marker([station['緯度'], station['經度']], {icon: redPinIcon, zIndexOffset: 10000});
+            } else {
+                const safeIcon = L.divIcon({ className: 'safe-dot', iconSize: [12, 12], iconAnchor: [6, 6], popupAnchor: [0, -6] });
+                newMarker = L.marker([station['緯度'], station['經度']], {icon: safeIcon});
+            }
+
+            newMarker.bindPopup(`
+                <div style="width:260px">
+                    <div class="font-bold text-gray-800 text-lg mb-1">${result.is_flooded ? '⚠️ 淹水警報' : '✅ 正常安全'}</div>
+                    <div class="mb-2">
+                        <div class="text-sm text-gray-600 font-bold">${station['道路名稱']}</div>
+                        <div class="text-xs text-gray-500">${station['位置描述'] || ''}</div>
+                    </div>
+                    <img src="${result.image_base64}" class="w-full rounded border-2 ${result.is_flooded ? 'border-red-500' : 'border-green-500'}">
+                    <div class="flex justify-between items-center mt-2 border-t pt-1">
+                        <span class="text-xs text-gray-400">Conf: ${result.confidence}</span>
+                        <span class="text-xs text-blue-500 font-mono">📍 ${station['經度']}, ${station['緯度']}</span>
+                    </div>
+                </div>
+            `);
+            markersGroup.addLayer(newMarker);
+            stationMarkers[station._tempID] = newMarker;
+        }
+
+        function markOffline(station) {
+            const marker = stationMarkers[station._tempID];
+            if (marker) markersGroup.removeLayer(marker);
+            const offlineIcon = L.divIcon({ className: 'offline-dot', iconSize: [10, 10], iconAnchor: [5, 5], popupAnchor: [0, -5] });
+            
+            newMarker = L.marker([station['緯度'], station['經度']], {icon: offlineIcon})
+                .bindPopup(`
+                    <b>${station['道路名稱']}</b><br>
+                    <span style="font-size:12px; color:#666">${station['位置描述'] || ''}</span><br>
+                    ❌ 訊號中斷<br>
+                    <span style="font-size:11px; color:#666;">座標: ${station['經度']}, ${station['緯度']}</span>
+                `);
+            markersGroup.addLayer(newMarker);
+            stationMarkers[station._tempID] = newMarker;
+        }
+
+        function addAlertCard(station, result) {
+            const container = document.getElementById('alert-list');
+            const card = document.createElement('div');
+            card.className = "bg-gray-800 rounded-lg p-3 border-l-4 border-red-500 shadow-lg cursor-pointer hover:bg-gray-700 transition animate-fade-in";
+            card.onclick = () => {
+                const targetMarker = stationMarkers[station._tempID];
+                if (targetMarker) {
+                    markersGroup.zoomToShowLayer(targetMarker, () => {
+                        targetMarker.openPopup();
+                        const radarIcon = L.divIcon({ className: 'radar-ring', iconSize: [60, 60], iconAnchor: [30, 30] });
+                        const radar = L.marker([station['緯度'], station['經度']], { icon: radarIcon, zIndexOffset: -1 }).addTo(map);
+                        setTimeout(() => map.removeLayer(radar), 2500);
+                    });
+                }
+            };
+            card.innerHTML = `
+                <div class="flex justify-between items-start mb-2">
+                    <span class="text-xs font-bold text-red-400 bg-red-900/50 px-2 py-0.5 rounded">Conf: ${result.confidence}</span>
+                    <span class="text-xs text-gray-500">ID: ${station['CCTVID'].slice(-4)}</span>
+                </div>
+                <div class="text-sm font-bold text-gray-200 mb-1 truncate">${station['道路名稱']}</div>
+                <div class="text-[10px] text-gray-400 mb-2 truncate">${station['位置描述'] || ''}</div>
+                <div class="relative h-32 bg-black rounded overflow-hidden border border-gray-600 group">
+                    <img src="${result.image_base64}" class="w-full h-full object-cover group-hover:scale-105 transition duration-500">
+                    <div class="absolute bottom-0 left-0 w-full bg-gradient-to-t from-black/80 to-transparent p-2">
+                         <span class="text-white text-xs">⚠️ 點擊定位</span>
+                    </div>
+                </div>
+            `;
+            container.prepend(card);
+        }
+    </script>
+</body>
+</html>
