@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Academic Writing Cockpit (Flowchart Edition)</title>
+    <title>Academic Writing Cockpit (Doc Saver)</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     
@@ -177,11 +177,9 @@
         <button class="nav-link" id="tab-refs" data-bs-toggle="pill" data-bs-target="#pane-refs" type="button">
             <i class="fas fa-book"></i> References
         </button>
-        
         <button class="nav-link" id="tab-draw" data-bs-toggle="pill" data-bs-target="#pane-draw" type="button">
             <i class="fas fa-project-diagram"></i> Flowchart / Draw
         </button>
-        
         <button class="nav-link" id="tab-trans" data-bs-toggle="pill" data-bs-target="#pane-trans" type="button">
             <i class="fas fa-language"></i> Tools & Translate
         </button>
@@ -201,7 +199,13 @@
         
         <div class="tab-pane fade show active" id="pane-write">
             <div class="tool-card">
-                <h4 class="mb-3">Drafting Workspace</h4>
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h4 class="mb-0">Drafting Workspace</h4>
+                    <button class="btn btn-primary btn-sm" onclick="saveDraftDoc()">
+                        <i class="fas fa-file-word me-1"></i> Save as .doc
+                    </button>
+                </div>
+                
                 <textarea id="editor-area" placeholder="Start writing here..."></textarea>
                 <div class="stats-bar">
                     <span id="word-count"><i class="fas fa-file-word"></i> 0 Words</span>
@@ -310,7 +314,7 @@
                     <canvas id="drawingCanvas"></canvas>
                 </div>
                 <div class="form-text text-muted mt-2">
-                    <i class="fas fa-info-circle"></i> <b>T Tip:</b> Select 'T' and click anywhere to add text. <b>Arrows:</b> Drag from one box to another.
+                    <i class="fas fa-info-circle"></i> <b>T Tip:</b> Select 'T' and click anywhere to add text.
                 </div>
             </div>
         </div>
@@ -371,7 +375,7 @@
         document.getElementById('visit-display').innerText = `Total Visits: ${visits}`;
     })();
 
-    /* ================= 1. WRITER ================= */
+    /* ================= 1. WRITER (With Doc Export) ================= */
     const editor = document.getElementById('editor-area');
     editor.addEventListener('input', () => {
         const text = editor.value;
@@ -380,6 +384,30 @@
         localStorage.setItem('awc_draft', text);
     });
     if(localStorage.getItem('awc_draft')) { editor.value = localStorage.getItem('awc_draft'); editor.dispatchEvent(new Event('input')); }
+
+    function saveDraftDoc() {
+        const text = editor.value;
+        if (!text) { alert("Draft is empty!"); return; }
+        
+        // Wrap text in HTML with Office namespace to ensure Word treats it as a doc
+        const htmlContent = `
+            <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+            <head><meta charset='utf-8'><title>Draft</title></head>
+            <body>
+            <p style="font-family:Arial, sans-serif; font-size:12pt;">
+            ${text.replace(/\n/g, '<br>')}
+            </p></body></html>`;
+            
+        const blob = new Blob(['\ufeff', htmlContent], { type: 'application/msword' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        const filename = 'Draft_' + new Date().toISOString().slice(0,19).replace(/:/g,"-") + '.doc';
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
 
     /* ================= 2. FLOWCHART / WHITEBOARD ================= */
     const canvas = document.getElementById('drawingCanvas');
@@ -428,7 +456,6 @@
         const btn = document.getElementById(btnId);
         if(btn) btn.classList.add('active');
         
-        // Cursor management
         canvas.style.cursor = (t === 'text') ? 'text' : 'crosshair';
     }
 
@@ -442,7 +469,6 @@
     function startDraw(e) {
         const coords = getCoords(e);
         
-        // TEXT TOOL LOGIC
         if (tool === 'text') {
             const text = prompt("Enter text label:", "");
             if (text) {
@@ -451,7 +477,7 @@
                 ctx.fillText(text, coords.x, coords.y);
                 saveState();
             }
-            return; // Don't start drag
+            return; 
         }
 
         painting = true;
@@ -485,7 +511,7 @@
         if (tool === 'pen' || tool === 'eraser') {
             if (tool === 'eraser') {
                 ctx.globalCompositeOperation = 'destination-out';
-                ctx.lineWidth *= 3; // Eraser bigger
+                ctx.lineWidth *= 3; 
                 ctx.strokeStyle = "rgba(0,0,0,1)"; 
             }
             ctx.lineTo(currPos.x, currPos.y);
@@ -494,7 +520,6 @@
             ctx.moveTo(currPos.x, currPos.y);
         } 
         else {
-            // Restore snapshot for preview effect
             ctx.putImageData(snapshot, 0, 0);
             ctx.beginPath();
             
@@ -505,21 +530,18 @@
                 ctx.rect(startPos.x, startPos.y, w, h);
             } 
             else if (tool === 'oval') {
-                // Oval/Capsule (Start/End)
                 ctx.beginPath();
                 ctx.ellipse(startPos.x + w/2, startPos.y + h/2, Math.abs(w/2), Math.abs(h/2), 0, 0, 2 * Math.PI);
             } 
             else if (tool === 'diamond') {
-                // Decision Diamond
-                ctx.moveTo(startPos.x + w/2, startPos.y);       // Top
-                ctx.lineTo(startPos.x + w, startPos.y + h/2);   // Right
-                ctx.lineTo(startPos.x + w/2, startPos.y + h);   // Bottom
-                ctx.lineTo(startPos.x, startPos.y + h/2);       // Left
+                ctx.moveTo(startPos.x + w/2, startPos.y);       
+                ctx.lineTo(startPos.x + w, startPos.y + h/2);   
+                ctx.lineTo(startPos.x + w/2, startPos.y + h);   
+                ctx.lineTo(startPos.x, startPos.y + h/2);       
                 ctx.closePath();
             }
             else if (tool === 'para') {
-                // Parallelogram (Input/Output)
-                const skew = w * 0.2; // 20% skew
+                const skew = w * 0.2; 
                 ctx.moveTo(startPos.x + skew, startPos.y);
                 ctx.lineTo(startPos.x + w, startPos.y);
                 ctx.lineTo(startPos.x + w - skew, startPos.y + h);
@@ -527,17 +549,13 @@
                 ctx.closePath();
             }
             else if (tool === 'arrow') {
-                // Draw Line
                 ctx.moveTo(startPos.x, startPos.y);
                 ctx.lineTo(currPos.x, currPos.y);
                 ctx.stroke();
-                
-                // Draw Arrowhead
                 const headLen = 10; 
                 const dx = currPos.x - startPos.x;
                 const dy = currPos.y - startPos.y;
                 const angle = Math.atan2(dy, dx);
-                
                 ctx.beginPath();
                 ctx.moveTo(currPos.x, currPos.y);
                 ctx.lineTo(currPos.x - headLen * Math.cos(angle - Math.PI / 6), currPos.y - headLen * Math.sin(angle - Math.PI / 6));
