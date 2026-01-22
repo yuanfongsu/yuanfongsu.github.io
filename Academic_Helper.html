@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Academic Writing Cockpit (With Undo)</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    
+    <style>
+        :root {
+            --sidebar-width: 260px;
+            --primary-color: #2c3e50;
+            --accent-color: #3498db;
+            --bg-light: #f8f9fa;
+        }
+
+        body {
+            height: 100vh;
+            overflow: hidden;
+            background-color: var(--bg-light);
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+        }
+
+        /* --- SIDEBAR --- */
+        #sidebar {
+            width: var(--sidebar-width);
+            height: 100vh;
+            position: fixed;
+            left: 0;
+            top: 0;
+            background: var(--primary-color);
+            color: white;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            z-index: 1000;
+        }
+
+        #sidebar .nav-link {
+            color: rgba(255,255,255,0.7);
+            padding: 12px 15px;
+            border-radius: 8px;
+            margin-bottom: 5px;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+        }
+
+        #sidebar .nav-link:hover, #sidebar .nav-link.active {
+            background: rgba(255,255,255,0.1);
+            color: white;
+            transform: translateX(5px);
+        }
+
+        #sidebar .brand {
+            font-size: 1.2rem;
+            font-weight: bold;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            text-align: center;
+        }
+
+        /* --- MAIN CONTENT --- */
+        #main-content {
+            margin-left: var(--sidebar-width);
+            height: 100vh;
+            overflow-y: auto;
+            padding: 30px;
+        }
+
+        .tool-card {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+            min-height: 80vh;
+        }
+
+        /* --- WRITER STYLES --- */
+        #editor-area {
+            width: 100%;
+            height: 70vh;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 20px;
+            font-size: 1.1rem;
+            line-height: 1.8;
+            resize: none;
+            outline: none;
+        }
+        #editor-area:focus { border-color: var(--accent-color); box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1); }
+        .stats-bar { font-size: 0.9rem; color: #666; margin-top: 10px; display: flex; gap: 20px; }
+
+        /* --- REF BUILDER STYLES --- */
+        .sortable-list { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+        .sortable-item {
+            cursor: grab; padding: 6px 12px; border-radius: 20px;
+            background: white; border: 1px solid #ccc;
+            font-size: 0.85rem; font-weight: 600;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            user-select: none;
+        }
+        .sortable-item:active { cursor: grabbing; transform: scale(1.02); }
+        
+        .block-author { background: #e3f2fd; color: #0d47a1; border-color: #90caf9; }
+        .block-year { background: #f3e5f5; color: #4a148c; border-color: #ce93d8; }
+        .block-title { background: #e8f5e9; color: #1b5e20; border-color: #a5d6a7; }
+        .block-journal { background: #fff3e0; color: #e65100; border-color: #ffcc80; }
+        .block-volume { background: #ffebee; color: #b71c1c; border-color: #ef9a9a; }
+        .block-pages { background: #fce4ec; color: #880e4f; border-color: #f48fb1; }
+        .block-doi { background: #e0f7fa; color: #006064; border-color: #80deea; }
+
+        /* --- WHITEBOARD STYLES (Grid) --- */
+        #canvas-wrapper {
+            width: 100%;
+            height: 65vh;
+            overflow: auto;
+            border: 2px solid #dee2e6;
+            border-radius: 8px;
+            /* Grid Background */
+            background-color: white;
+            background-image: 
+                linear-gradient(to right, #f0f0f0 1px, transparent 1px),
+                linear-gradient(to bottom, #f0f0f0 1px, transparent 1px);
+            background-size: 20px 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        #drawingCanvas { 
+            display: block; 
+            touch-action: none; 
+            background: transparent; 
+            cursor: crosshair;
+        }
+        
+        .btn-tool.active {
+            background-color: #e3f2fd;
+            border-color: #2196f3;
+            color: #0b5ed7;
+        }
+
+        /* --- NOTES STYLES --- */
+        .note-item {
+            background: #fff9c4;
+            border-left: 4px solid #fbc02d;
+            padding: 10px;
+            margin-bottom: 10px;
+            position: relative;
+            border-radius: 4px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            animation: fadeIn 0.3s;
+        }
+        .delete-note { position: absolute; top: 5px; right: 5px; cursor: pointer; color: #aaa; }
+        .delete-note:hover { color: #f44336; }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body>
+
+<div id="sidebar">
+    <div class="brand"><i class="fas fa-graduation-cap me-2"></i>ScholarKit</div>
+    <div class="nav flex-column nav-pills" id="v-pills-tab" role="tablist">
+        <button class="nav-link active" id="tab-write" data-bs-toggle="pill" data-bs-target="#pane-write" type="button">
+            <i class="fas fa-pen-nib"></i> Focus Writer
+        </button>
+        <button class="nav-link" id="tab-refs" data-bs-toggle="pill" data-bs-target="#pane-refs" type="button">
+            <i class="fas fa-book"></i> References
+        </button>
+        <button class="nav-link" id="tab-draw" data-bs-toggle="pill" data-bs-target="#pane-draw" type="button">
+            <i class="fas fa-paint-brush"></i> Whiteboard
+        </button>
+        <button class="nav-link" id="tab-trans" data-bs-toggle="pill" data-bs-target="#pane-trans" type="button">
+            <i class="fas fa-language"></i> Tools & Translate
+        </button>
+        <button class="nav-link" id="tab-notes" data-bs-toggle="pill" data-bs-target="#pane-notes" type="button">
+            <i class="fas fa-sticky-note"></i> Quick Notes
+        </button>
+    </div>
+    <div class="mt-auto text-center small opacity-50"><p>Local Storage Auto-Save On</p></div>
+</div>
+
+<div id="main-content">
+    <div class="tab-content" id="v-pills-tabContent">
+        
+        <div class="tab-pane fade show active" id="pane-write">
+            <div class="tool-card">
+                <h4 class="mb-3">Drafting Workspace</h4>
+                <textarea id="editor-area" placeholder="Start writing here..."></textarea>
+                <div class="stats-bar">
+                    <span id="word-count"><i class="fas fa-file-word"></i> 0 Words</span>
+                    <span id="char-count"><i class="fas fa-font"></i> 0 Characters</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="tab-pane fade" id="pane-refs">
+            <div class="tool-card">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h4><i class="fas fa-quote-right text-primary"></i> Reference Converter</h4>
+                </div>
+                <ul class="nav nav-tabs mb-3">
+                    <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#ref-file">Upload File</button></li>
+                    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#ref-text">Paste Text</button></li>
+                </ul>
+                <div class="tab-content mb-3">
+                    <div class="tab-pane fade show active" id="ref-file">
+                        <input class="form-control" type="file" id="fileInput" accept=".docx">
+                        <div class="form-text">Supports .docx files containing DOIs.</div>
+                    </div>
+                    <div class="tab-pane fade" id="ref-text">
+                        <textarea class="form-control" id="textInput" rows="3" placeholder="Paste text containing DOIs"></textarea>
+                    </div>
+                </div>
+                <label class="form-label fw-bold">Output Style</label>
+                <select class="form-select mb-3" id="formatSelect">
+                    <option value="apa">APA (7th Ed.)</option>
+                    <option value="ieee">IEEE</option>
+                    <option value="harvard1">Harvard</option>
+                    <option value="modern-language-association">MLA</option>
+                    <option value="chicago-author-date">Chicago</option>
+                    <option value="ris">RIS (EndNote)</option>
+                    <option value="custom" class="text-danger fw-bold">★ Custom (Drag & Drop Builder)</option>
+                </select>
+                <div id="builder-container" style="display:none; background:#f8f9fa; padding:15px; border-radius:8px; border:1px dashed #ccc; margin-bottom:15px;">
+                    <p class="small text-uppercase fw-bold text-muted mb-2">Drag blocks to set citation order:</p>
+                    <ul class="sortable-list" id="sortable-list">
+                        <li class="sortable-item block-author" draggable="true" data-type="author">Author</li>
+                        <li class="sortable-item block-year" draggable="true" data-type="year">Year</li>
+                        <li class="sortable-item block-title" draggable="true" data-type="title">Title</li>
+                        <li class="sortable-item block-journal" draggable="true" data-type="journal">Journal</li>
+                        <li class="sortable-item block-volume" draggable="true" data-type="volume">Vol(Issue)</li>
+                        <li class="sortable-item block-pages" draggable="true" data-type="pages">Pages</li>
+                        <li class="sortable-item block-doi" draggable="true" data-type="doi">DOI</li>
+                    </ul>
+                </div>
+                <button class="btn btn-primary w-100 mb-3" id="convertBtn">
+                    <span class="spinner-border spinner-border-sm d-none" id="loadingSpinner"></span> Convert
+                </button>
+                <div class="bg-light p-3 border rounded position-relative">
+                    <button class="btn btn-sm btn-outline-secondary position-absolute top-0 end-0 m-2" onclick="copyRef()">Copy</button>
+                    <div id="output-area" style="min-height:100px;">Results will appear here...</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="tab-pane fade" id="pane-draw">
+            <div class="tool-card">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h4 class="mb-0">Whiteboard</h4>
+                    <span id="canvas-dims" class="badge bg-secondary">0 x 0 px</span>
+                </div>
+                
+                <div class="d-flex flex-wrap gap-2 align-items-center mb-3 bg-light p-2 rounded border">
+                    <div class="d-flex align-items-center gap-1">
+                        <input type="color" id="penColor" class="form-control form-control-color" value="#000000" title="Color">
+                        <input type="range" id="penSize" class="form-range" min="1" max="20" value="3" style="width: 80px;" title="Size">
+                    </div>
+                    <div class="vr"></div>
+                    
+                    <div class="btn-group btn-group-sm">
+                        <button class="btn btn-outline-secondary btn-tool active" id="btn-pen" onclick="setTool('pen')" title="Freehand Pen"><i class="fas fa-pen"></i></button>
+                        <button class="btn btn-outline-secondary btn-tool" id="btn-eraser" onclick="setTool('eraser')" title="Eraser"><i class="fas fa-eraser"></i></button>
+                    </div>
+                    
+                    <div class="vr"></div>
+                    
+                    <div class="btn-group btn-group-sm">
+                        <button class="btn btn-outline-secondary btn-tool" id="btn-line" onclick="setTool('line')" title="Straight Line"><i class="fas fa-slash"></i></button>
+                        <button class="btn btn-outline-secondary btn-tool" id="btn-rect" onclick="setTool('rect')" title="Rectangle"><i class="far fa-square"></i></button>
+                        <button class="btn btn-outline-secondary btn-tool" id="btn-tri" onclick="setTool('tri')" title="Triangle"><i class="fas fa-play fa-rotate-270"></i></button>
+                        <button class="btn btn-outline-secondary btn-tool" id="btn-circ" onclick="setTool('circ')" title="Circle/Oval"><i class="far fa-circle"></i></button>
+                    </div>
+
+                    <div class="vr"></div>
+                    
+                    <button class="btn btn-sm btn-outline-dark" onclick="undo()" title="Undo"><i class="fas fa-undo"></i> Undo</button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="clearCanvas()" title="Clear All"><i class="fas fa-trash"></i></button>
+                    
+                    <div class="vr"></div>
+                    <div class="dropdown ms-auto">
+                        <button class="btn btn-sm btn-success dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                            <i class="fas fa-download"></i> Save
+                        </button>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="#" onclick="saveCanvas('png')">PNG (Transparent)</a></li>
+                            <li><a class="dropdown-item" href="#" onclick="saveCanvas('jpg')">JPG (White BG)</a></li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div id="canvas-wrapper">
+                    <canvas id="drawingCanvas"></canvas>
+                </div>
+                <div class="form-text text-muted mt-2">
+                    <i class="fas fa-info-circle"></i> Grid enabled for alignment (not saved in images).
+                </div>
+            </div>
+        </div>
+
+        <div class="tab-pane fade" id="pane-trans">
+            <div class="tool-card">
+                <h4 class="mb-4">Research & Translation Helper</h4>
+                <div class="row g-4">
+                    <div class="col-md-6">
+                        <textarea class="form-control" id="trans-input" rows="8" placeholder="Type text or query here..."></textarea>
+                    </div>
+                    <div class="col-md-6 d-flex flex-column gap-2 justify-content-center">
+                        <p class="text-muted small mb-1">Select a tool to launch:</p>
+                        
+                        <button class="btn btn-outline-info text-start" onclick="openTool('perplexity')">
+                            <i class="fas fa-robot me-2"></i> <b>Perplexity AI</b> (Ask/Research)
+                        </button>
+                        
+                        <button class="btn btn-outline-primary text-start" onclick="openTool('google')">
+                            <i class="fab fa-google me-2"></i> Google Translate
+                        </button>
+                        
+                        <button class="btn btn-outline-dark text-start" onclick="openTool('deepl')">
+                            <i class="fas fa-language me-2"></i> DeepL Translator
+                        </button>
+                        
+                        <button class="btn btn-outline-success text-start" onclick="openTool('thesaurus')">
+                            <i class="fas fa-book-open me-2"></i> Thesaurus.com
+                        </button>
+                        
+                        <button class="btn btn-outline-danger text-start" onclick="openTool('scholar')">
+                            <i class="fas fa-graduation-cap me-2"></i> Google Scholar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="tab-pane fade" id="pane-notes">
+            <div class="tool-card">
+                <h4 class="mb-3">Scratchpad</h4>
+                <div class="input-group mb-3">
+                    <input type="text" class="form-control" id="note-input" placeholder="Enter a quick idea..." onkeypress="handleNoteKey(event)">
+                    <button class="btn btn-success" onclick="addNote()">Add</button>
+                </div>
+                
+                <div id="notes-list"></div>
+                
+                <div class="d-flex justify-content-between mt-3 border-top pt-3">
+                    <button class="btn btn-sm btn-outline-danger" onclick="clearNotes()">Clear All</button>
+                    <button class="btn btn-sm btn-outline-primary" onclick="downloadNotes()">
+                        <i class="fas fa-file-download me-1"></i> Download as .txt
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/citation-js@0.7.14/build/citation.js"></script>
+
+<script>
+    /* ================= 1. WRITER ================= */
+    const editor = document.getElementById('editor-area');
+    editor.addEventListener('input', () => {
+        const text = editor.value;
+        document.getElementById('char-count').innerHTML = `<i class="fas fa-font"></i> ${text.length}`;
+        document.getElementById('word-count').innerHTML = `<i class="fas fa-file-word"></i> ${text.trim() === '' ? 0 : text.trim().split(/\s+/).length}`;
+        localStorage.setItem('awc_draft', text);
+    });
+    if(localStorage.getItem('awc_draft')) { editor.value = localStorage.getItem('awc_draft'); editor.dispatchEvent(new Event('input')); }
+
+    /* ================= 2. WHITEBOARD (GRID + SHAPES + UNDO) ================= */
+    const canvas = document.getElementById('drawingCanvas');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    const wrapper = document.getElementById('canvas-wrapper');
+    const dimsBadge = document.getElementById('canvas-dims');
+    
+    // State variables
+    let painting = false;
+    let tool = 'pen'; 
+    let startPos = {x:0, y:0};
+    let snapshot = null; // For shape preview
+    
+    // Undo History
+    let historyStack = [];
+    let historyIndex = -1;
+
+    document.getElementById('tab-draw').addEventListener('shown.bs.tab', () => {
+        if(canvas.width === 0 || canvas.width === 300) initCanvasSize();
+    });
+
+    function initCanvasSize() {
+        canvas.width = wrapper.clientWidth - 4; 
+        canvas.height = wrapper.clientHeight - 4;
+        ctx.clearRect(0,0, canvas.width, canvas.height); 
+        updateDims();
+        saveState(); // Save initial blank state
+    }
+
+    function updateDims() { dimsBadge.innerText = `${canvas.width} x ${canvas.height} px`; }
+
+    // --- UNDO SYSTEM ---
+    function saveState() {
+        historyIndex++;
+        // If we undo and then draw, we cut off the redo history
+        if (historyIndex < historyStack.length) {
+            historyStack.length = historyIndex;
+        }
+        historyStack.push(ctx.getImageData(0, 0, canvas.width, canvas.height));
+    }
+
+    function undo() {
+        if (historyIndex > 0) {
+            historyIndex--;
+            ctx.putImageData(historyStack[historyIndex], 0, 0);
+        }
+    }
+
+    // --- DRAWING LOGIC ---
+    function setTool(t) {
+        tool = t;
+        document.querySelectorAll('.btn-tool').forEach(b => b.classList.remove('active'));
+        const btnId = t === 'tri' ? 'btn-tri' : t === 'circ' ? 'btn-circ' : `btn-${t}`;
+        const btn = document.getElementById(btnId);
+        if(btn) btn.classList.add('active');
+    }
+
+    function getCoords(e) {
+        const rect = canvas.getBoundingClientRect();
+        let cx = e.clientX, cy = e.clientY;
+        if(e.touches && e.touches.length > 0) { cx = e.touches[0].clientX; cy = e.touches[0].clientY; }
+        return { x: cx - rect.left, y: cy - rect.top };
+    }
+
+    function startDraw(e) {
+        painting = true;
+        const coords = getCoords(e);
+        startPos = coords;
+        ctx.beginPath(); 
+        
+        if (tool !== 'pen' && tool !== 'eraser') {
+            // Save preview snapshot (doesn't go into Undo stack yet)
+            snapshot = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        } else {
+            draw(e); 
+        }
+    }
+
+    function endDraw(e) {
+        if (!painting) return;
+        painting = false;
+        ctx.beginPath();
+        // Save state to History Stack when stroke/shape finishes
+        saveState();
+    }
+
+    function draw(e) {
+        if (!painting) return;
+        const currPos = getCoords(e);
+        
+        ctx.lineWidth = document.getElementById('penSize').value;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.strokeStyle = document.getElementById('penColor').value;
+        ctx.globalCompositeOperation = 'source-over';
+
+        // Freehand
+        if (tool === 'pen' || tool === 'eraser') {
+            if (tool === 'eraser') {
+                ctx.globalCompositeOperation = 'destination-out';
+                ctx.lineWidth *= 2;
+                ctx.strokeStyle = "rgba(0,0,0,1)"; 
+            }
+            ctx.lineTo(currPos.x, currPos.y);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(currPos.x, currPos.y);
+        } 
+        // Shapes (Preview)
+        else {
+            ctx.putImageData(snapshot, 0, 0);
+            ctx.beginPath();
+
+            const w = currPos.x - startPos.x;
+            const h = currPos.y - startPos.y;
+
+            if (tool === 'line') {
+                ctx.moveTo(startPos.x, startPos.y);
+                ctx.lineTo(currPos.x, currPos.y);
+            } 
+            else if (tool === 'rect') {
+                ctx.rect(startPos.x, startPos.y, w, h);
+            } 
+            else if (tool === 'circ') {
+                ctx.beginPath();
+                const centerX = startPos.x + w/2;
+                const centerY = startPos.y + h/2;
+                ctx.ellipse(centerX, centerY, Math.abs(w/2), Math.abs(h/2), 0, 0, 2 * Math.PI);
+            } 
+            else if (tool === 'tri') {
+                ctx.moveTo(startPos.x + w/2, startPos.y);
+                ctx.lineTo(startPos.x, startPos.y + h);
+                ctx.lineTo(startPos.x + w, startPos.y + h);
+                ctx.closePath();
+            }
+            ctx.stroke();
+        }
+        
+        if(e.type === 'touchmove') e.preventDefault();
+    }
+
+    function clearCanvas() { 
+        ctx.clearRect(0, 0, canvas.width, canvas.height); 
+        saveState(); // Clear is an undoable action
+    }
+
+    function saveCanvas(ext) {
+        const link = document.createElement('a');
+        link.download = `whiteboard-${Date.now()}.${ext}`;
+        if(ext === 'jpg') {
+            ctx.globalCompositeOperation = 'destination-over';
+            ctx.fillStyle = "white"; ctx.fillRect(0,0,canvas.width,canvas.height);
+            ctx.globalCompositeOperation = 'source-over';
+            link.href = canvas.toDataURL('image/jpeg', 0.9);
+        } else { 
+            link.href = canvas.toDataURL('image/png'); 
+        }
+        link.click();
+    }
+
+    canvas.addEventListener('mousedown', startDraw); canvas.addEventListener('mouseup', endDraw); canvas.addEventListener('mousemove', draw);
+    canvas.addEventListener('touchstart', startDraw, {passive: false}); canvas.addEventListener('touchend', endDraw); canvas.addEventListener('touchmove', draw, {passive: false});
+
+    /* ================= 3. REFERENCE ================= */
+    const formatSelect = document.getElementById('formatSelect');
+    const builderContainer = document.getElementById('builder-container');
+    const sortableList = document.getElementById('sortable-list');
+    
+    formatSelect.addEventListener('change', (e) => {
+        builderContainer.style.display = (e.target.value === 'custom') ? 'block' : 'none';
+    });
+
+    let draggedItem = null;
+    sortableList.addEventListener('dragstart', e => { draggedItem = e.target; e.target.style.opacity = '0.5'; });
+    sortableList.addEventListener('dragend', e => { e.target.style.opacity = '1'; draggedItem = null; });
+    sortableList.addEventListener('dragover', e => {
+        e.preventDefault();
+        const afterElement = getDragAfterElement(sortableList, e.clientX);
+        if (afterElement == null) sortableList.appendChild(draggedItem);
+        else sortableList.insertBefore(draggedItem, afterElement);
+    });
+
+    function getDragAfterElement(container, x) {
+        const draggableElements = [...container.querySelectorAll('.sortable-item:not([style*="opacity: 0.5"])')];
+        return draggableElements.reduce((closest, child) => {
+            const box = child.getBoundingClientRect();
+            const offset = x - box.left - box.width / 2;
+            if (offset < 0 && offset > closest.offset) return { offset: offset, element: child };
+            else return closest;
+        }, { offset: Number.NEGATIVE_INFINITY }).element;
+    }
+
+    document.getElementById('convertBtn').addEventListener('click', async () => {
+        const C = window.require('citation-js'); const Cite = C.Cite || C;
+        const spinner = document.getElementById('loadingSpinner'); const output = document.getElementById('output-area');
+        spinner.classList.remove('d-none'); output.innerHTML = 'Processing...';
+
+        try {
+            let rawText = "";
+            const activeTab = document.querySelector('.nav-link[data-bs-target="#ref-file"].active');
+            if (activeTab) {
+                const fileInput = document.getElementById('fileInput');
+                if (!fileInput.files[0]) throw new Error("Select a .docx file.");
+                const buffer = await fileInput.files[0].arrayBuffer();
+                const res = await mammoth.extractRawText({ arrayBuffer: buffer });
+                rawText = res.value;
+            } else {
+                rawText = document.getElementById('textInput').value;
+                if (!rawText.trim()) throw new Error("Paste text with DOIs.");
+            }
+
+            const matches = rawText.match(/\b(10\.\d{4,9}\/[-._;()/:A-Z0-9]+)\b/gi);
+            if (!matches) throw new Error("No DOIs found.");
+            const uniqueDois = [...new Set(matches)];
+
+            const citationsData = [];
+            for (const doi of uniqueDois) {
+                try {
+                    const clean = doi.trim().replace(/^https?:\/\/doi\.org\//, '');
+                    const r = await fetch(`https://api.crossref.org/works/${clean}`);
+                    if (r.ok) { const d = await r.json(); citationsData.push(d.message); }
+                } catch (e) {}
+            }
+            if (citationsData.length === 0) throw new Error("Metadata fetch failed.");
+
+            const format = formatSelect.value;
+            let resultHtml = "";
+            if (format === 'custom') {
+                const order = [...document.querySelectorAll('.sortable-item')].map(el => el.dataset.type);
+                resultHtml = generateCustomCitation(citationsData, order);
+            } else {
+                const citationObject = new Cite(citationsData);
+                if(format === 'ris') resultHtml = `<pre>${citationObject.format('ris')}</pre>`;
+                else {
+                    try { resultHtml = citationObject.format('bibliography', { format: 'html', template: format, lang: 'en-US' }); }
+                    catch(err) { resultHtml = "Style error. Try APA."; }
+                }
+            }
+            output.innerHTML = resultHtml;
+        } catch (error) { output.innerHTML = `<div class="text-danger">Error: ${error.message}</div>`; }
+        spinner.classList.add('d-none');
+    });
+
+    function generateCustomCitation(data, order) {
+        let html = '<div class="csl-bib-body" style="padding-left: 2em; text-indent: -2em;">';
+        data.forEach(item => {
+            let parts = [];
+            order.forEach(type => {
+                if(type === 'author' && item.author) parts.push(`<b>${item.author.map(a => a.family).join(', ')}</b>`);
+                if(type === 'year' && item.issued?.['date-parts']) parts.push(`(${item.issued['date-parts'][0][0]})`);
+                if(type === 'title' && item.title) parts.push(`"${item.title}"`);
+                if(type === 'journal' && item['container-title']) parts.push(`<i>${item['container-title']}</i>`);
+                if(type === 'volume' && item.volume) parts.push(`Vol. ${item.volume}`);
+                if(type === 'pages' && item.page) parts.push(`pp. ${item.page}`);
+                if(type === 'doi' && item.DOI) parts.push(`<a href="https://doi.org/${item.DOI}" target="_blank">DOI</a>`);
+            });
+            html += `<div class="csl-entry mb-2">${parts.join('. ')}.</div>`;
+        });
+        html += '</div>';
+        return html;
+    }
+    function copyRef() {
+        const r = document.createRange(); r.selectNode(document.getElementById('output-area'));
+        window.getSelection().removeAllRanges(); window.getSelection().addRange(r);
+        document.execCommand("copy"); window.getSelection().removeAllRanges();
+        alert("References copied!");
+    }
+
+    /* ================= 4. TOOLS ================= */
+    function loadNotes() {
+        const notes = JSON.parse(localStorage.getItem('awc_notes') || '[]');
+        const list = document.getElementById('notes-list');
+        list.innerHTML = '';
+        notes.forEach((note, index) => {
+            list.innerHTML += `<div class="note-item">${note}<i class="fas fa-times delete-note" onclick="deleteNote(${index})"></i></div>`;
+        });
+    }
+    function addNote() {
+        const input = document.getElementById('note-input'); if(!input.value.trim()) return;
+        const notes = JSON.parse(localStorage.getItem('awc_notes') || '[]');
+        notes.unshift(input.value); localStorage.setItem('awc_notes', JSON.stringify(notes));
+        input.value = ''; loadNotes();
+    }
+    function deleteNote(index) {
+        const notes = JSON.parse(localStorage.getItem('awc_notes') || '[]');
+        notes.splice(index, 1); localStorage.setItem('awc_notes', JSON.stringify(notes)); loadNotes();
+    }
+    function clearNotes() { if(confirm("Clear notes?")) { localStorage.removeItem('awc_notes'); loadNotes(); } }
+    function handleNoteKey(e) { if(e.key === 'Enter') addNote(); }
+    
+    function downloadNotes() {
+        const notes = JSON.parse(localStorage.getItem('awc_notes') || '[]');
+        if(notes.length === 0) { alert("No notes to save!"); return; }
+        const text = notes.join('\n\n-------------------\n\n');
+        const blob = new Blob([text], {type: 'text/plain'});
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'my-scratchpad-notes.txt';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+    }
+    
+    loadNotes();
+
+    function openTool(type) {
+        const text = encodeURIComponent(document.getElementById('trans-input').value);
+        let url = '';
+        if(type==='perplexity') url = `https://www.perplexity.ai/?q=${text}`;
+        if(type==='google') url = `https://translate.google.com/?sl=auto&tl=en&text=${text}&op=translate`;
+        if(type==='deepl') url = `https://www.deepl.com/translator#auto/en/${text}`;
+        if(type==='thesaurus') url = `https://www.thesaurus.com/browse/${text}`;
+        if(type==='scholar') url = `https://scholar.google.com/scholar?q=${text}`;
+        if(url) window.open(url, '_blank', 'width=1000,height=600');
+    }
+</script>
+</body>
+</html>
