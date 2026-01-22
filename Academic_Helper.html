@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Academic Writing Cockpit (With Undo)</title>
+    <title>Academic Writing Cockpit (Flowchart Edition)</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     
@@ -121,7 +121,6 @@
             overflow: auto;
             border: 2px solid #dee2e6;
             border-radius: 8px;
-            /* Grid Background */
             background-color: white;
             background-image: 
                 linear-gradient(to right, #f0f0f0 1px, transparent 1px),
@@ -130,18 +129,24 @@
             display: flex;
             justify-content: center;
             align-items: center;
+            cursor: crosshair;
         }
         #drawingCanvas { 
             display: block; 
             touch-action: none; 
             background: transparent; 
-            cursor: crosshair;
         }
-        
         .btn-tool.active {
             background-color: #e3f2fd;
             border-color: #2196f3;
             color: #0b5ed7;
+        }
+        .tool-group-label {
+            font-size: 0.7rem;
+            color: #999;
+            text-transform: uppercase;
+            font-weight: bold;
+            margin-right: 5px;
         }
 
         /* --- NOTES STYLES --- */
@@ -172,9 +177,11 @@
         <button class="nav-link" id="tab-refs" data-bs-toggle="pill" data-bs-target="#pane-refs" type="button">
             <i class="fas fa-book"></i> References
         </button>
+        
         <button class="nav-link" id="tab-draw" data-bs-toggle="pill" data-bs-target="#pane-draw" type="button">
-            <i class="fas fa-paint-brush"></i> Whiteboard
+            <i class="fas fa-project-diagram"></i> Flowchart / Draw
         </button>
+        
         <button class="nav-link" id="tab-trans" data-bs-toggle="pill" data-bs-target="#pane-trans" type="button">
             <i class="fas fa-language"></i> Tools & Translate
         </button>
@@ -182,7 +189,11 @@
             <i class="fas fa-sticky-note"></i> Quick Notes
         </button>
     </div>
-    <div class="mt-auto text-center small opacity-50"><p>Local Storage Auto-Save On</p></div>
+    
+    <div class="mt-auto text-center small opacity-50">
+        <p id="visit-display" class="fw-bold mb-1">Total Visits: 0</p>
+        <p>Local Storage Auto-Save On</p>
+    </div>
 </div>
 
 <div id="main-content">
@@ -252,34 +263,35 @@
         <div class="tab-pane fade" id="pane-draw">
             <div class="tool-card">
                 <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h4 class="mb-0">Whiteboard</h4>
+                    <h4 class="mb-0">Flowchart & Diagrams</h4>
                     <span id="canvas-dims" class="badge bg-secondary">0 x 0 px</span>
                 </div>
                 
                 <div class="d-flex flex-wrap gap-2 align-items-center mb-3 bg-light p-2 rounded border">
                     <div class="d-flex align-items-center gap-1">
                         <input type="color" id="penColor" class="form-control form-control-color" value="#000000" title="Color">
-                        <input type="range" id="penSize" class="form-range" min="1" max="20" value="3" style="width: 80px;" title="Size">
+                        <input type="range" id="penSize" class="form-range" min="1" max="10" value="2" style="width: 70px;" title="Stroke Size">
                     </div>
                     <div class="vr"></div>
                     
                     <div class="btn-group btn-group-sm">
-                        <button class="btn btn-outline-secondary btn-tool active" id="btn-pen" onclick="setTool('pen')" title="Freehand Pen"><i class="fas fa-pen"></i></button>
+                        <button class="btn btn-outline-secondary btn-tool active" id="btn-pen" onclick="setTool('pen')" title="Freehand"><i class="fas fa-pen"></i></button>
+                        <button class="btn btn-outline-secondary btn-tool" id="btn-text" onclick="setTool('text')" title="Text Label"><i class="fas fa-font"></i></button>
                         <button class="btn btn-outline-secondary btn-tool" id="btn-eraser" onclick="setTool('eraser')" title="Eraser"><i class="fas fa-eraser"></i></button>
                     </div>
-                    
                     <div class="vr"></div>
-                    
+
+                    <span class="tool-group-label">Flowchart:</span>
                     <div class="btn-group btn-group-sm">
-                        <button class="btn btn-outline-secondary btn-tool" id="btn-line" onclick="setTool('line')" title="Straight Line"><i class="fas fa-slash"></i></button>
-                        <button class="btn btn-outline-secondary btn-tool" id="btn-rect" onclick="setTool('rect')" title="Rectangle"><i class="far fa-square"></i></button>
-                        <button class="btn btn-outline-secondary btn-tool" id="btn-tri" onclick="setTool('tri')" title="Triangle"><i class="fas fa-play fa-rotate-270"></i></button>
-                        <button class="btn btn-outline-secondary btn-tool" id="btn-circ" onclick="setTool('circ')" title="Circle/Oval"><i class="far fa-circle"></i></button>
+                        <button class="btn btn-outline-secondary btn-tool" id="btn-oval" onclick="setTool('oval')" title="Start/End (Oval)"><i class="far fa-circle"></i></button>
+                        <button class="btn btn-outline-secondary btn-tool" id="btn-rect" onclick="setTool('rect')" title="Process (Rectangle)"><i class="far fa-square"></i></button>
+                        <button class="btn btn-outline-secondary btn-tool" id="btn-diamond" onclick="setTool('diamond')" title="Decision (Diamond)"><i class="fas fa-diamond"></i></button>
+                        <button class="btn btn-outline-secondary btn-tool" id="btn-para" onclick="setTool('para')" title="Input/Output (Parallelogram)"><i class="fas fa-vector-square"></i></button>
+                        <button class="btn btn-outline-secondary btn-tool" id="btn-arrow" onclick="setTool('arrow')" title="Connector Arrow"><i class="fas fa-long-arrow-alt-right"></i></button>
                     </div>
 
                     <div class="vr"></div>
-                    
-                    <button class="btn btn-sm btn-outline-dark" onclick="undo()" title="Undo"><i class="fas fa-undo"></i> Undo</button>
+                    <button class="btn btn-sm btn-outline-dark" onclick="undo()" title="Undo"><i class="fas fa-undo"></i></button>
                     <button class="btn btn-sm btn-outline-danger" onclick="clearCanvas()" title="Clear All"><i class="fas fa-trash"></i></button>
                     
                     <div class="vr"></div>
@@ -298,7 +310,7 @@
                     <canvas id="drawingCanvas"></canvas>
                 </div>
                 <div class="form-text text-muted mt-2">
-                    <i class="fas fa-info-circle"></i> Grid enabled for alignment (not saved in images).
+                    <i class="fas fa-info-circle"></i> <b>T Tip:</b> Select 'T' and click anywhere to add text. <b>Arrows:</b> Drag from one box to another.
                 </div>
             </div>
         </div>
@@ -308,30 +320,19 @@
                 <h4 class="mb-4">Research & Translation Helper</h4>
                 <div class="row g-4">
                     <div class="col-md-6">
-                        <textarea class="form-control" id="trans-input" rows="8" placeholder="Type text or query here..."></textarea>
+                        <label class="form-label">Input Text / Query</label>
+                        <textarea class="form-control" id="trans-input" rows="10" placeholder="Type text or query here..."></textarea>
                     </div>
                     <div class="col-md-6 d-flex flex-column gap-2 justify-content-center">
-                        <p class="text-muted small mb-1">Select a tool to launch:</p>
-                        
-                        <button class="btn btn-outline-info text-start" onclick="openTool('perplexity')">
-                            <i class="fas fa-robot me-2"></i> <b>Perplexity AI</b> (Ask/Research)
-                        </button>
-                        
-                        <button class="btn btn-outline-primary text-start" onclick="openTool('google')">
-                            <i class="fab fa-google me-2"></i> Google Translate
-                        </button>
-                        
-                        <button class="btn btn-outline-dark text-start" onclick="openTool('deepl')">
-                            <i class="fas fa-language me-2"></i> DeepL Translator
-                        </button>
-                        
-                        <button class="btn btn-outline-success text-start" onclick="openTool('thesaurus')">
-                            <i class="fas fa-book-open me-2"></i> Thesaurus.com
-                        </button>
-                        
-                        <button class="btn btn-outline-danger text-start" onclick="openTool('scholar')">
-                            <i class="fas fa-graduation-cap me-2"></i> Google Scholar
-                        </button>
+                        <p class="text-muted small mb-1">AI Assistants:</p>
+                        <button class="btn btn-outline-success text-start" onclick="openTool('chatgpt')"><i class="fas fa-comments me-2"></i> <b>ChatGPT</b> (OpenAI)</button>
+                        <button class="btn btn-outline-primary text-start" onclick="openTool('gemini')"><i class="fas fa-star me-2"></i> <b>Gemini</b> (Google)</button>
+                        <button class="btn btn-outline-info text-start" onclick="openTool('perplexity')"><i class="fas fa-robot me-2"></i> <b>Perplexity AI</b> (Research)</button>
+                        <hr class="my-1">
+                        <p class="text-muted small mb-1">Classic Tools:</p>
+                        <button class="btn btn-outline-secondary text-start" onclick="openTool('google')"><i class="fab fa-google me-2"></i> Google Translate</button>
+                        <button class="btn btn-outline-dark text-start" onclick="openTool('deepl')"><i class="fas fa-language me-2"></i> DeepL Translator</button>
+                        <button class="btn btn-outline-danger text-start" onclick="openTool('scholar')"><i class="fas fa-graduation-cap me-2"></i> Google Scholar</button>
                     </div>
                 </div>
             </div>
@@ -344,9 +345,7 @@
                     <input type="text" class="form-control" id="note-input" placeholder="Enter a quick idea..." onkeypress="handleNoteKey(event)">
                     <button class="btn btn-success" onclick="addNote()">Add</button>
                 </div>
-                
                 <div id="notes-list"></div>
-                
                 <div class="d-flex justify-content-between mt-3 border-top pt-3">
                     <button class="btn btn-sm btn-outline-danger" onclick="clearNotes()">Clear All</button>
                     <button class="btn btn-sm btn-outline-primary" onclick="downloadNotes()">
@@ -363,6 +362,15 @@
 <script src="https://cdn.jsdelivr.net/npm/citation-js@0.7.14/build/citation.js"></script>
 
 <script>
+    /* ================= 0. VISIT COUNTER ================= */
+    (function updateVisits() {
+        let visits = localStorage.getItem('awc_visits');
+        visits = parseInt(visits) || 0;
+        visits++;
+        localStorage.setItem('awc_visits', visits);
+        document.getElementById('visit-display').innerText = `Total Visits: ${visits}`;
+    })();
+
     /* ================= 1. WRITER ================= */
     const editor = document.getElementById('editor-area');
     editor.addEventListener('input', () => {
@@ -373,19 +381,16 @@
     });
     if(localStorage.getItem('awc_draft')) { editor.value = localStorage.getItem('awc_draft'); editor.dispatchEvent(new Event('input')); }
 
-    /* ================= 2. WHITEBOARD (GRID + SHAPES + UNDO) ================= */
+    /* ================= 2. FLOWCHART / WHITEBOARD ================= */
     const canvas = document.getElementById('drawingCanvas');
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
     const wrapper = document.getElementById('canvas-wrapper');
     const dimsBadge = document.getElementById('canvas-dims');
     
-    // State variables
     let painting = false;
     let tool = 'pen'; 
     let startPos = {x:0, y:0};
-    let snapshot = null; // For shape preview
-    
-    // Undo History
+    let snapshot = null;
     let historyStack = [];
     let historyIndex = -1;
 
@@ -398,18 +403,14 @@
         canvas.height = wrapper.clientHeight - 4;
         ctx.clearRect(0,0, canvas.width, canvas.height); 
         updateDims();
-        saveState(); // Save initial blank state
+        saveState();
     }
 
     function updateDims() { dimsBadge.innerText = `${canvas.width} x ${canvas.height} px`; }
 
-    // --- UNDO SYSTEM ---
     function saveState() {
         historyIndex++;
-        // If we undo and then draw, we cut off the redo history
-        if (historyIndex < historyStack.length) {
-            historyStack.length = historyIndex;
-        }
+        if (historyIndex < historyStack.length) historyStack.length = historyIndex;
         historyStack.push(ctx.getImageData(0, 0, canvas.width, canvas.height));
     }
 
@@ -420,13 +421,15 @@
         }
     }
 
-    // --- DRAWING LOGIC ---
     function setTool(t) {
         tool = t;
         document.querySelectorAll('.btn-tool').forEach(b => b.classList.remove('active'));
-        const btnId = t === 'tri' ? 'btn-tri' : t === 'circ' ? 'btn-circ' : `btn-${t}`;
+        const btnId = 'btn-' + t;
         const btn = document.getElementById(btnId);
         if(btn) btn.classList.add('active');
+        
+        // Cursor management
+        canvas.style.cursor = (t === 'text') ? 'text' : 'crosshair';
     }
 
     function getCoords(e) {
@@ -437,13 +440,25 @@
     }
 
     function startDraw(e) {
-        painting = true;
         const coords = getCoords(e);
+        
+        // TEXT TOOL LOGIC
+        if (tool === 'text') {
+            const text = prompt("Enter text label:", "");
+            if (text) {
+                ctx.fillStyle = document.getElementById('penColor').value;
+                ctx.font = `${document.getElementById('penSize').value * 5 + 10}px Arial`;
+                ctx.fillText(text, coords.x, coords.y);
+                saveState();
+            }
+            return; // Don't start drag
+        }
+
+        painting = true;
         startPos = coords;
         ctx.beginPath(); 
         
         if (tool !== 'pen' && tool !== 'eraser') {
-            // Save preview snapshot (doesn't go into Undo stack yet)
             snapshot = ctx.getImageData(0, 0, canvas.width, canvas.height);
         } else {
             draw(e); 
@@ -454,7 +469,6 @@
         if (!painting) return;
         painting = false;
         ctx.beginPath();
-        // Save state to History Stack when stroke/shape finishes
         saveState();
     }
 
@@ -468,11 +482,10 @@
         ctx.strokeStyle = document.getElementById('penColor').value;
         ctx.globalCompositeOperation = 'source-over';
 
-        // Freehand
         if (tool === 'pen' || tool === 'eraser') {
             if (tool === 'eraser') {
                 ctx.globalCompositeOperation = 'destination-out';
-                ctx.lineWidth *= 2;
+                ctx.lineWidth *= 3; // Eraser bigger
                 ctx.strokeStyle = "rgba(0,0,0,1)"; 
             }
             ctx.lineTo(currPos.x, currPos.y);
@@ -480,55 +493,74 @@
             ctx.beginPath();
             ctx.moveTo(currPos.x, currPos.y);
         } 
-        // Shapes (Preview)
         else {
+            // Restore snapshot for preview effect
             ctx.putImageData(snapshot, 0, 0);
             ctx.beginPath();
-
+            
             const w = currPos.x - startPos.x;
             const h = currPos.y - startPos.y;
 
-            if (tool === 'line') {
-                ctx.moveTo(startPos.x, startPos.y);
-                ctx.lineTo(currPos.x, currPos.y);
-            } 
-            else if (tool === 'rect') {
+            if (tool === 'rect') {
                 ctx.rect(startPos.x, startPos.y, w, h);
             } 
-            else if (tool === 'circ') {
+            else if (tool === 'oval') {
+                // Oval/Capsule (Start/End)
                 ctx.beginPath();
-                const centerX = startPos.x + w/2;
-                const centerY = startPos.y + h/2;
-                ctx.ellipse(centerX, centerY, Math.abs(w/2), Math.abs(h/2), 0, 0, 2 * Math.PI);
+                ctx.ellipse(startPos.x + w/2, startPos.y + h/2, Math.abs(w/2), Math.abs(h/2), 0, 0, 2 * Math.PI);
             } 
-            else if (tool === 'tri') {
-                ctx.moveTo(startPos.x + w/2, startPos.y);
-                ctx.lineTo(startPos.x, startPos.y + h);
-                ctx.lineTo(startPos.x + w, startPos.y + h);
+            else if (tool === 'diamond') {
+                // Decision Diamond
+                ctx.moveTo(startPos.x + w/2, startPos.y);       // Top
+                ctx.lineTo(startPos.x + w, startPos.y + h/2);   // Right
+                ctx.lineTo(startPos.x + w/2, startPos.y + h);   // Bottom
+                ctx.lineTo(startPos.x, startPos.y + h/2);       // Left
                 ctx.closePath();
             }
+            else if (tool === 'para') {
+                // Parallelogram (Input/Output)
+                const skew = w * 0.2; // 20% skew
+                ctx.moveTo(startPos.x + skew, startPos.y);
+                ctx.lineTo(startPos.x + w, startPos.y);
+                ctx.lineTo(startPos.x + w - skew, startPos.y + h);
+                ctx.lineTo(startPos.x, startPos.y + h);
+                ctx.closePath();
+            }
+            else if (tool === 'arrow') {
+                // Draw Line
+                ctx.moveTo(startPos.x, startPos.y);
+                ctx.lineTo(currPos.x, currPos.y);
+                ctx.stroke();
+                
+                // Draw Arrowhead
+                const headLen = 10; 
+                const dx = currPos.x - startPos.x;
+                const dy = currPos.y - startPos.y;
+                const angle = Math.atan2(dy, dx);
+                
+                ctx.beginPath();
+                ctx.moveTo(currPos.x, currPos.y);
+                ctx.lineTo(currPos.x - headLen * Math.cos(angle - Math.PI / 6), currPos.y - headLen * Math.sin(angle - Math.PI / 6));
+                ctx.moveTo(currPos.x, currPos.y);
+                ctx.lineTo(currPos.x - headLen * Math.cos(angle + Math.PI / 6), currPos.y - headLen * Math.sin(angle + Math.PI / 6));
+            }
+            
             ctx.stroke();
         }
-        
         if(e.type === 'touchmove') e.preventDefault();
     }
 
-    function clearCanvas() { 
-        ctx.clearRect(0, 0, canvas.width, canvas.height); 
-        saveState(); // Clear is an undoable action
-    }
+    function clearCanvas() { ctx.clearRect(0, 0, canvas.width, canvas.height); saveState(); }
 
     function saveCanvas(ext) {
         const link = document.createElement('a');
-        link.download = `whiteboard-${Date.now()}.${ext}`;
+        link.download = `flowchart-${Date.now()}.${ext}`;
         if(ext === 'jpg') {
             ctx.globalCompositeOperation = 'destination-over';
             ctx.fillStyle = "white"; ctx.fillRect(0,0,canvas.width,canvas.height);
             ctx.globalCompositeOperation = 'source-over';
             link.href = canvas.toDataURL('image/jpeg', 0.9);
-        } else { 
-            link.href = canvas.toDataURL('image/png'); 
-        }
+        } else { link.href = canvas.toDataURL('image/png'); }
         link.click();
     }
 
@@ -680,11 +712,15 @@
     function openTool(type) {
         const text = encodeURIComponent(document.getElementById('trans-input').value);
         let url = '';
+        if(type==='chatgpt') url = `https://chatgpt.com/`;
+        if(type==='gemini') url = `https://gemini.google.com/`;
         if(type==='perplexity') url = `https://www.perplexity.ai/?q=${text}`;
+        
         if(type==='google') url = `https://translate.google.com/?sl=auto&tl=en&text=${text}&op=translate`;
         if(type==='deepl') url = `https://www.deepl.com/translator#auto/en/${text}`;
         if(type==='thesaurus') url = `https://www.thesaurus.com/browse/${text}`;
         if(type==='scholar') url = `https://scholar.google.com/scholar?q=${text}`;
+        
         if(url) window.open(url, '_blank', 'width=1000,height=600');
     }
 </script>
