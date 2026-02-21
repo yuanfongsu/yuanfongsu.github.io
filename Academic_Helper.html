@@ -177,6 +177,9 @@
         <button class="nav-link" id="tab-refs" data-bs-toggle="pill" data-bs-target="#pane-refs" type="button">
             <i class="fas fa-book"></i> References
         </button>
+        <button class="nav-link" id="tab-journal" data-bs-toggle="pill" data-bs-target="#pane-journal" type="button">
+            <i class="fas fa-compress-alt"></i> Journal Abbr.
+        </button>
         <button class="nav-link" id="tab-draw" data-bs-toggle="pill" data-bs-target="#pane-draw" type="button">
             <i class="fas fa-project-diagram"></i> Flowchart / Draw
         </button>
@@ -220,16 +223,16 @@
                     <h4><i class="fas fa-quote-right text-primary"></i> Reference Converter</h4>
                 </div>
                 <ul class="nav nav-tabs mb-3">
-                    <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#ref-file">Upload File</button></li>
-                    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#ref-text">Paste Text</button></li>
+                    <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#ref-text">Paste Text</button></li>
+                    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#ref-file">Upload File</button></li>
                 </ul>
                 <div class="tab-content mb-3">
-                    <div class="tab-pane fade show active" id="ref-file">
+                    <div class="tab-pane fade show active" id="ref-text">
+                        <textarea class="form-control" id="textInput" rows="3" placeholder="Paste text containing DOIs"></textarea>
+                    </div>
+                    <div class="tab-pane fade" id="ref-file">
                         <input class="form-control" type="file" id="fileInput" accept=".docx">
                         <div class="form-text">Supports .docx files containing DOIs.</div>
-                    </div>
-                    <div class="tab-pane fade" id="ref-text">
-                        <textarea class="form-control" id="textInput" rows="3" placeholder="Paste text containing DOIs"></textarea>
                     </div>
                 </div>
                 <label class="form-label fw-bold">Output Style</label>
@@ -260,6 +263,28 @@
                 <div class="bg-light p-3 border rounded position-relative">
                     <button class="btn btn-sm btn-outline-secondary position-absolute top-0 end-0 m-2" onclick="copyRef()">Copy</button>
                     <div id="output-area" style="min-height:100px;">Results will appear here...</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="tab-pane fade" id="pane-journal">
+            <div class="tool-card">
+                <h4 class="mb-3">ISO 4 Journal Abbreviator</h4>
+                <div class="mb-4">
+                    <label for="journal-input" class="form-label">Full Journal Name</label>
+                    <div class="input-group">
+                        <input type="text" class="form-control" id="journal-input" placeholder="e.g. IEEE Transactions on Geoscience" onkeypress="handleJournalKey(event)">
+                        <button class="btn btn-primary" onclick="convertJournal()"><i class="fas fa-bolt me-1"></i> Abbreviate</button>
+                    </div>
+                </div>
+                
+                <div class="bg-light p-4 border rounded position-relative mb-4">
+                    <button class="btn btn-sm btn-outline-secondary position-absolute top-0 end-0 m-2" onclick="copyJournalAbbr()" title="Copy to clipboard"><i class="fas fa-copy"></i></button>
+                    <strong class="text-muted d-block mb-2">Abbreviation Result:</strong>
+                    <span id="journal-output" class="fs-4 fw-bold text-primary">---</span>
+                </div>
+                <div class="form-text mt-2 text-muted">
+                    <i class="fas fa-info-circle"></i> Uses an offline ISO 4 dictionary. Automatically removes stop words ("of", "the", "and") and applies standard scientific abbreviations.
                 </div>
             </div>
         </div>
@@ -375,7 +400,7 @@
         document.getElementById('visit-display').innerText = `Total Visits: ${visits}`;
     })();
 
-    /* ================= 1. WRITER (With Doc Export) ================= */
+    /* ================= 1. WRITER ================= */
     const editor = document.getElementById('editor-area');
     editor.addEventListener('input', () => {
         const text = editor.value;
@@ -388,8 +413,6 @@
     function saveDraftDoc() {
         const text = editor.value;
         if (!text) { alert("Draft is empty!"); return; }
-        
-        // Wrap text in HTML with Office namespace to ensure Word treats it as a doc
         const htmlContent = `
             <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
             <head><meta charset='utf-8'><title>Draft</title></head>
@@ -397,7 +420,6 @@
             <p style="font-family:Arial, sans-serif; font-size:12pt;">
             ${text.replace(/\n/g, '<br>')}
             </p></body></html>`;
-            
         const blob = new Blob(['\ufeff', htmlContent], { type: 'application/msword' });
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
@@ -409,53 +431,35 @@
         document.body.removeChild(link);
     }
 
-    /* ================= 2. FLOWCHART / WHITEBOARD ================= */
+    /* ================= 2. FLOWCHART ================= */
     const canvas = document.getElementById('drawingCanvas');
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
     const wrapper = document.getElementById('canvas-wrapper');
     const dimsBadge = document.getElementById('canvas-dims');
     
-    let painting = false;
-    let tool = 'pen'; 
-    let startPos = {x:0, y:0};
-    let snapshot = null;
-    let historyStack = [];
-    let historyIndex = -1;
+    let painting = false; let tool = 'pen'; let startPos = {x:0, y:0};
+    let snapshot = null; let historyStack = []; let historyIndex = -1;
 
     document.getElementById('tab-draw').addEventListener('shown.bs.tab', () => {
         if(canvas.width === 0 || canvas.width === 300) initCanvasSize();
     });
 
     function initCanvasSize() {
-        canvas.width = wrapper.clientWidth - 4; 
-        canvas.height = wrapper.clientHeight - 4;
+        canvas.width = wrapper.clientWidth - 4; canvas.height = wrapper.clientHeight - 4;
         ctx.clearRect(0,0, canvas.width, canvas.height); 
-        updateDims();
-        saveState();
+        updateDims(); saveState();
     }
-
     function updateDims() { dimsBadge.innerText = `${canvas.width} x ${canvas.height} px`; }
-
     function saveState() {
-        historyIndex++;
-        if (historyIndex < historyStack.length) historyStack.length = historyIndex;
+        historyIndex++; if (historyIndex < historyStack.length) historyStack.length = historyIndex;
         historyStack.push(ctx.getImageData(0, 0, canvas.width, canvas.height));
     }
-
-    function undo() {
-        if (historyIndex > 0) {
-            historyIndex--;
-            ctx.putImageData(historyStack[historyIndex], 0, 0);
-        }
-    }
+    function undo() { if (historyIndex > 0) { historyIndex--; ctx.putImageData(historyStack[historyIndex], 0, 0); } }
 
     function setTool(t) {
         tool = t;
         document.querySelectorAll('.btn-tool').forEach(b => b.classList.remove('active'));
-        const btnId = 'btn-' + t;
-        const btn = document.getElementById(btnId);
-        if(btn) btn.classList.add('active');
-        
+        const btnId = 'btn-' + t; const btn = document.getElementById(btnId); if(btn) btn.classList.add('active');
         canvas.style.cursor = (t === 'text') ? 'text' : 'crosshair';
     }
 
@@ -468,116 +472,54 @@
 
     function startDraw(e) {
         const coords = getCoords(e);
-        
         if (tool === 'text') {
             const text = prompt("Enter text label:", "");
             if (text) {
                 ctx.fillStyle = document.getElementById('penColor').value;
                 ctx.font = `${document.getElementById('penSize').value * 5 + 10}px Arial`;
-                ctx.fillText(text, coords.x, coords.y);
-                saveState();
+                ctx.fillText(text, coords.x, coords.y); saveState();
             }
             return; 
         }
-
-        painting = true;
-        startPos = coords;
-        ctx.beginPath(); 
-        
-        if (tool !== 'pen' && tool !== 'eraser') {
-            snapshot = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        } else {
-            draw(e); 
-        }
+        painting = true; startPos = coords; ctx.beginPath(); 
+        if (tool !== 'pen' && tool !== 'eraser') { snapshot = ctx.getImageData(0, 0, canvas.width, canvas.height); } else { draw(e); }
     }
 
-    function endDraw(e) {
-        if (!painting) return;
-        painting = false;
-        ctx.beginPath();
-        saveState();
-    }
+    function endDraw(e) { if (!painting) return; painting = false; ctx.beginPath(); saveState(); }
 
     function draw(e) {
         if (!painting) return;
         const currPos = getCoords(e);
-        
-        ctx.lineWidth = document.getElementById('penSize').value;
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
-        ctx.strokeStyle = document.getElementById('penColor').value;
-        ctx.globalCompositeOperation = 'source-over';
+        ctx.lineWidth = document.getElementById('penSize').value; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+        ctx.strokeStyle = document.getElementById('penColor').value; ctx.globalCompositeOperation = 'source-over';
 
         if (tool === 'pen' || tool === 'eraser') {
-            if (tool === 'eraser') {
-                ctx.globalCompositeOperation = 'destination-out';
-                ctx.lineWidth *= 3; 
-                ctx.strokeStyle = "rgba(0,0,0,1)"; 
-            }
-            ctx.lineTo(currPos.x, currPos.y);
-            ctx.stroke();
-            ctx.beginPath();
-            ctx.moveTo(currPos.x, currPos.y);
-        } 
-        else {
-            ctx.putImageData(snapshot, 0, 0);
-            ctx.beginPath();
-            
-            const w = currPos.x - startPos.x;
-            const h = currPos.y - startPos.y;
-
-            if (tool === 'rect') {
-                ctx.rect(startPos.x, startPos.y, w, h);
-            } 
-            else if (tool === 'oval') {
-                ctx.beginPath();
-                ctx.ellipse(startPos.x + w/2, startPos.y + h/2, Math.abs(w/2), Math.abs(h/2), 0, 0, 2 * Math.PI);
-            } 
-            else if (tool === 'diamond') {
-                ctx.moveTo(startPos.x + w/2, startPos.y);       
-                ctx.lineTo(startPos.x + w, startPos.y + h/2);   
-                ctx.lineTo(startPos.x + w/2, startPos.y + h);   
-                ctx.lineTo(startPos.x, startPos.y + h/2);       
-                ctx.closePath();
-            }
-            else if (tool === 'para') {
-                const skew = w * 0.2; 
-                ctx.moveTo(startPos.x + skew, startPos.y);
-                ctx.lineTo(startPos.x + w, startPos.y);
-                ctx.lineTo(startPos.x + w - skew, startPos.y + h);
-                ctx.lineTo(startPos.x, startPos.y + h);
-                ctx.closePath();
-            }
+            if (tool === 'eraser') { ctx.globalCompositeOperation = 'destination-out'; ctx.lineWidth *= 3; ctx.strokeStyle = "rgba(0,0,0,1)"; }
+            ctx.lineTo(currPos.x, currPos.y); ctx.stroke(); ctx.beginPath(); ctx.moveTo(currPos.x, currPos.y);
+        } else {
+            ctx.putImageData(snapshot, 0, 0); ctx.beginPath();
+            const w = currPos.x - startPos.x; const h = currPos.y - startPos.y;
+            if (tool === 'rect') ctx.rect(startPos.x, startPos.y, w, h);
+            else if (tool === 'oval') { ctx.beginPath(); ctx.ellipse(startPos.x + w/2, startPos.y + h/2, Math.abs(w/2), Math.abs(h/2), 0, 0, 2 * Math.PI); } 
+            else if (tool === 'diamond') { ctx.moveTo(startPos.x + w/2, startPos.y); ctx.lineTo(startPos.x + w, startPos.y + h/2); ctx.lineTo(startPos.x + w/2, startPos.y + h); ctx.lineTo(startPos.x, startPos.y + h/2); ctx.closePath(); }
+            else if (tool === 'para') { const skew = w * 0.2; ctx.moveTo(startPos.x + skew, startPos.y); ctx.lineTo(startPos.x + w, startPos.y); ctx.lineTo(startPos.x + w - skew, startPos.y + h); ctx.lineTo(startPos.x, startPos.y + h); ctx.closePath(); }
             else if (tool === 'arrow') {
-                ctx.moveTo(startPos.x, startPos.y);
-                ctx.lineTo(currPos.x, currPos.y);
-                ctx.stroke();
-                const headLen = 10; 
-                const dx = currPos.x - startPos.x;
-                const dy = currPos.y - startPos.y;
-                const angle = Math.atan2(dy, dx);
-                ctx.beginPath();
-                ctx.moveTo(currPos.x, currPos.y);
-                ctx.lineTo(currPos.x - headLen * Math.cos(angle - Math.PI / 6), currPos.y - headLen * Math.sin(angle - Math.PI / 6));
-                ctx.moveTo(currPos.x, currPos.y);
-                ctx.lineTo(currPos.x - headLen * Math.cos(angle + Math.PI / 6), currPos.y - headLen * Math.sin(angle + Math.PI / 6));
+                ctx.moveTo(startPos.x, startPos.y); ctx.lineTo(currPos.x, currPos.y); ctx.stroke();
+                const headLen = 10; const dx = currPos.x - startPos.x; const dy = currPos.y - startPos.y; const angle = Math.atan2(dy, dx);
+                ctx.beginPath(); ctx.moveTo(currPos.x, currPos.y); ctx.lineTo(currPos.x - headLen * Math.cos(angle - Math.PI / 6), currPos.y - headLen * Math.sin(angle - Math.PI / 6));
+                ctx.moveTo(currPos.x, currPos.y); ctx.lineTo(currPos.x - headLen * Math.cos(angle + Math.PI / 6), currPos.y - headLen * Math.sin(angle + Math.PI / 6));
             }
-            
             ctx.stroke();
         }
         if(e.type === 'touchmove') e.preventDefault();
     }
 
     function clearCanvas() { ctx.clearRect(0, 0, canvas.width, canvas.height); saveState(); }
-
     function saveCanvas(ext) {
-        const link = document.createElement('a');
-        link.download = `flowchart-${Date.now()}.${ext}`;
+        const link = document.createElement('a'); link.download = `flowchart-${Date.now()}.${ext}`;
         if(ext === 'jpg') {
-            ctx.globalCompositeOperation = 'destination-over';
-            ctx.fillStyle = "white"; ctx.fillRect(0,0,canvas.width,canvas.height);
-            ctx.globalCompositeOperation = 'source-over';
-            link.href = canvas.toDataURL('image/jpeg', 0.9);
+            ctx.globalCompositeOperation = 'destination-over'; ctx.fillStyle = "white"; ctx.fillRect(0,0,canvas.width,canvas.height);
+            ctx.globalCompositeOperation = 'source-over'; link.href = canvas.toDataURL('image/jpeg', 0.9);
         } else { link.href = canvas.toDataURL('image/png'); }
         link.click();
     }
@@ -585,14 +527,12 @@
     canvas.addEventListener('mousedown', startDraw); canvas.addEventListener('mouseup', endDraw); canvas.addEventListener('mousemove', draw);
     canvas.addEventListener('touchstart', startDraw, {passive: false}); canvas.addEventListener('touchend', endDraw); canvas.addEventListener('touchmove', draw, {passive: false});
 
-    /* ================= 3. REFERENCE ================= */
+    /* ================= 3. REFERENCE CONVERTER ================= */
     const formatSelect = document.getElementById('formatSelect');
     const builderContainer = document.getElementById('builder-container');
     const sortableList = document.getElementById('sortable-list');
     
-    formatSelect.addEventListener('change', (e) => {
-        builderContainer.style.display = (e.target.value === 'custom') ? 'block' : 'none';
-    });
+    formatSelect.addEventListener('change', (e) => { builderContainer.style.display = (e.target.value === 'custom') ? 'block' : 'none'; });
 
     let draggedItem = null;
     sortableList.addEventListener('dragstart', e => { draggedItem = e.target; e.target.style.opacity = '0.5'; });
@@ -607,10 +547,8 @@
     function getDragAfterElement(container, x) {
         const draggableElements = [...container.querySelectorAll('.sortable-item:not([style*="opacity: 0.5"])')];
         return draggableElements.reduce((closest, child) => {
-            const box = child.getBoundingClientRect();
-            const offset = x - box.left - box.width / 2;
-            if (offset < 0 && offset > closest.offset) return { offset: offset, element: child };
-            else return closest;
+            const box = child.getBoundingClientRect(); const offset = x - box.left - box.width / 2;
+            if (offset < 0 && offset > closest.offset) return { offset: offset, element: child }; else return closest;
         }, { offset: Number.NEGATIVE_INFINITY }).element;
     }
 
@@ -623,14 +561,10 @@
             let rawText = "";
             const activeTab = document.querySelector('.nav-link[data-bs-target="#ref-file"].active');
             if (activeTab) {
-                const fileInput = document.getElementById('fileInput');
-                if (!fileInput.files[0]) throw new Error("Select a .docx file.");
-                const buffer = await fileInput.files[0].arrayBuffer();
-                const res = await mammoth.extractRawText({ arrayBuffer: buffer });
-                rawText = res.value;
+                const fileInput = document.getElementById('fileInput'); if (!fileInput.files[0]) throw new Error("Select a .docx file.");
+                const buffer = await fileInput.files[0].arrayBuffer(); const res = await mammoth.extractRawText({ arrayBuffer: buffer }); rawText = res.value;
             } else {
-                rawText = document.getElementById('textInput').value;
-                if (!rawText.trim()) throw new Error("Paste text with DOIs.");
+                rawText = document.getElementById('textInput').value; if (!rawText.trim()) throw new Error("Paste text with DOIs.");
             }
 
             const matches = rawText.match(/\b(10\.\d{4,9}\/[-._;()/:A-Z0-9]+)\b/gi);
@@ -680,65 +614,118 @@
             });
             html += `<div class="csl-entry mb-2">${parts.join('. ')}.</div>`;
         });
-        html += '</div>';
-        return html;
+        html += '</div>'; return html;
     }
     function copyRef() {
         const r = document.createRange(); r.selectNode(document.getElementById('output-area'));
         window.getSelection().removeAllRanges(); window.getSelection().addRange(r);
-        document.execCommand("copy"); window.getSelection().removeAllRanges();
-        alert("References copied!");
+        document.execCommand("copy"); window.getSelection().removeAllRanges(); alert("References copied!");
+    }
+
+    /* ================= 3b. OFFLINE ISO 4 JOURNAL ABBREVIATOR ================= */
+    function convertJournal() {
+        const input = document.getElementById('journal-input').value.trim();
+        if(!input) return;
+
+        const outputSpan = document.getElementById('journal-output');
+        
+        // Expanded ISO 4 Dictionary including common academic, engineering, and science terms
+        const abbrDict = {
+            "journal": "J.", "international": "Int.", "science": "Sci.", "sciences": "Sci.",
+            "engineering": "Eng.", "review": "Rev.", "reviews": "Rev.", "letters": "Lett.",
+            "applied": "Appl.", "research": "Res.", "advances": "Adv.", "advanced": "Adv.",
+            "proceedings": "Proc.", "transactions": "Trans.", "society": "Soc.", "association": "Assoc.",
+            "american": "Am.", "european": "Eur.", "national": "Natl.", "institute": "Inst.",
+            "geoscience": "Geosci.", "geosciences": "Geosci.", "earth": "Earth", 
+            "environmental": "Environ.", "environment": "Environ.", "remote": "Remote", 
+            "sensing": "Sens.", "photogrammetry": "Photogramm.",
+            "hydrology": "Hydrol.", "hydrological": "Hydrol.", "water": "Water", 
+            "resources": "Resour.", "ocean": "Ocean", "river": "River", "coastal": "Coast.",
+            "marine": "Mar.", "artificial": "Artif.", "intelligence": "Intell.", 
+            "machine": "Mach.", "learning": "Learn.", "pattern": "Pattern", 
+            "recognition": "Recognit.", "computer": "Comput.", "vision": "Vis.",
+            "system": "Syst.", "systems": "Syst.", "analysis": "Anal.", "data": "Data",
+            "management": "Manage.", "modeling": "Model.", "modelling": "Model.",
+            "physics": "Phys.", "physical": "Phys.", "chemistry": "Chem.", "chemical": "Chem.",
+            "biology": "Biol.", "biological": "Biol.", "technology": "Technol.",
+            "information": "Inf.", "mathematics": "Math.", "mathematical": "Math.",
+            "statistics": "Stat.", "statistical": "Stat.", "communications": "Commun.",
+            "natural": "Nat.", "nature": "Nature", "ieee": "IEEE", "acm": "ACM", "asce": "ASCE", 
+            "isprs": "ISPRS", "mdpi": "MDPI"
+        };
+        
+        // Standard ISO 4 stop words to be discarded
+        const stopWords = new Set(["of", "the", "and", "&", "in", "on", "for", "a", "an", "with"]);
+        
+        // Split input string into array of words
+        let words = input.split(/[\s]+/);
+        let abbrWords = [];
+
+        for (let w of words) {
+            // Lowercase and remove punctuation for dictionary matching
+            let cleanW = w.toLowerCase().replace(/[^a-z]/g, '');
+            
+            // Skip stop words
+            if (stopWords.has(cleanW)) continue;
+            
+            // Check dictionary, else retain word and ensure Title Case
+            if (abbrDict[cleanW]) {
+                abbrWords.push(abbrDict[cleanW]);
+            } else {
+                abbrWords.push(w.charAt(0).toUpperCase() + w.slice(1));
+            }
+        }
+
+        const generatedAbbr = abbrWords.join(' ');
+        
+        outputSpan.innerHTML = `<span class="text-success" id="final-abbr-text">${generatedAbbr}</span>`;
+    }
+
+    function handleJournalKey(e) {
+        if(e.key === 'Enter') convertJournal();
+    }
+
+    function copyJournalAbbr() {
+        const textNode = document.getElementById('final-abbr-text');
+        if(textNode) {
+            const r = document.createRange();
+            r.selectNode(textNode);
+            window.getSelection().removeAllRanges();
+            window.getSelection().addRange(r);
+            document.execCommand("copy");
+            window.getSelection().removeAllRanges();
+        }
     }
 
     /* ================= 4. TOOLS ================= */
     function loadNotes() {
         const notes = JSON.parse(localStorage.getItem('awc_notes') || '[]');
-        const list = document.getElementById('notes-list');
-        list.innerHTML = '';
-        notes.forEach((note, index) => {
-            list.innerHTML += `<div class="note-item">${note}<i class="fas fa-times delete-note" onclick="deleteNote(${index})"></i></div>`;
-        });
+        const list = document.getElementById('notes-list'); list.innerHTML = '';
+        notes.forEach((note, index) => { list.innerHTML += `<div class="note-item">${note}<i class="fas fa-times delete-note" onclick="deleteNote(${index})"></i></div>`; });
     }
     function addNote() {
         const input = document.getElementById('note-input'); if(!input.value.trim()) return;
         const notes = JSON.parse(localStorage.getItem('awc_notes') || '[]');
-        notes.unshift(input.value); localStorage.setItem('awc_notes', JSON.stringify(notes));
-        input.value = ''; loadNotes();
+        notes.unshift(input.value); localStorage.setItem('awc_notes', JSON.stringify(notes)); input.value = ''; loadNotes();
     }
     function deleteNote(index) {
-        const notes = JSON.parse(localStorage.getItem('awc_notes') || '[]');
-        notes.splice(index, 1); localStorage.setItem('awc_notes', JSON.stringify(notes)); loadNotes();
+        const notes = JSON.parse(localStorage.getItem('awc_notes') || '[]'); notes.splice(index, 1); localStorage.setItem('awc_notes', JSON.stringify(notes)); loadNotes();
     }
     function clearNotes() { if(confirm("Clear notes?")) { localStorage.removeItem('awc_notes'); loadNotes(); } }
     function handleNoteKey(e) { if(e.key === 'Enter') addNote(); }
     
     function downloadNotes() {
-        const notes = JSON.parse(localStorage.getItem('awc_notes') || '[]');
-        if(notes.length === 0) { alert("No notes to save!"); return; }
-        const text = notes.join('\n\n-------------------\n\n');
-        const blob = new Blob([text], {type: 'text/plain'});
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = 'my-scratchpad-notes.txt';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
+        const notes = JSON.parse(localStorage.getItem('awc_notes') || '[]'); if(notes.length === 0) { alert("No notes to save!"); return; }
+        const text = notes.join('\n\n-------------------\n\n'); const blob = new Blob([text], {type: 'text/plain'}); const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob); a.download = 'my-scratchpad-notes.txt'; document.body.appendChild(a); a.click(); document.body.removeChild(a);
     }
-    
     loadNotes();
 
     function openTool(type) {
-        const text = encodeURIComponent(document.getElementById('trans-input').value);
-        let url = '';
-        if(type==='chatgpt') url = `https://chatgpt.com/`;
-        if(type==='gemini') url = `https://gemini.google.com/`;
-        if(type==='perplexity') url = `https://www.perplexity.ai/?q=${text}`;
-        
-        if(type==='google') url = `https://translate.google.com/?sl=auto&tl=en&text=${text}&op=translate`;
-        if(type==='deepl') url = `https://www.deepl.com/translator#auto/en/${text}`;
-        if(type==='thesaurus') url = `https://www.thesaurus.com/browse/${text}`;
+        const text = encodeURIComponent(document.getElementById('trans-input').value); let url = '';
+        if(type==='chatgpt') url = `https://chatgpt.com/`; if(type==='gemini') url = `https://gemini.google.com/`; if(type==='perplexity') url = `https://www.perplexity.ai/?q=${text}`;
+        if(type==='google') url = `https://translate.google.com/?sl=auto&tl=en&text=${text}&op=translate`; if(type==='deepl') url = `https://www.deepl.com/translator#auto/en/${text}`;
         if(type==='scholar') url = `https://scholar.google.com/scholar?q=${text}`;
-        
         if(url) window.open(url, '_blank', 'width=1000,height=600');
     }
 </script>
