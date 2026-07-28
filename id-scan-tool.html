@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ID Card Scanner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+  :root{
+    --paper:#F6F4EE;
+    --surface:#FFFFFF;
+    --ink:#1F2430;
+    --ink-soft:#5B6270;
+    --line:#DAD5C7;
+    --accent:#2C5F8A;
+    --accent-soft:#E4ECF2;
+    --stamp:#3A7D5C;
+    --stamp-soft:#E4EFE8;
+    --warn:#B4483A;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--paper);
+    background-image:
+      linear-gradient(var(--line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--line) 1px, transparent 1px);
+    background-size: 32px 32px;
+    background-position: -1px -1px;
+    color:var(--ink);
+    font-family:'IBM Plex Sans', sans-serif;
+    min-height:100vh;
+    padding: 40px 20px 80px;
+  }
+  .wrap{max-width: 980px; margin: 0 auto;}
+
+  header{
+    display:flex;
+    align-items:flex-end;
+    justify-content:space-between;
+    border-bottom: 2px solid var(--ink);
+    padding-bottom: 18px;
+    margin-bottom: 36px;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .eyebrow{
+    font-family:'IBM Plex Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 6px;
+  }
+  h1{
+    font-size: 28px;
+    margin: 0;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+  .doc-id{
+    font-family:'IBM Plex Mono', monospace;
+    font-size: 12px;
+    color: var(--ink-soft);
+    text-align: right;
+    line-height: 1.6;
+  }
+
+  .slots{
+    display:grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+  }
+  @media (max-width: 720px){ .slots{ grid-template-columns: 1fr; } }
+
+  .slot{
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    overflow:hidden;
+  }
+  .slot-head{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--line);
+  }
+  .slot-label{
+    font-family:'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+  }
+  .slot-status{
+    font-family:'IBM Plex Mono', monospace;
+    font-size: 11px;
+    padding: 3px 8px;
+    border-radius: 10px;
+    background: #EFECE3;
+    color: var(--ink-soft);
+  }
+  .slot-status.ready{ background: var(--stamp-soft); color: var(--stamp); }
+
+  .card-frame{
+    position:relative;
+    aspect-ratio: 85.6 / 53.98;
+    margin: 20px;
+    border-radius: 10px;
+    background: #F1EFE8;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    overflow:hidden;
+  }
+  .card-frame img{
+    width:100%;
+    height:100%;
+    object-fit: cover;
+    display:block;
+  }
+  .card-frame .corner{
+    position:absolute;
+    width: 16px;
+    height: 16px;
+    border-color: var(--accent);
+    opacity: 0.55;
+  }
+  .corner.tl{ top:8px; left:8px; border-top:2px solid; border-left:2px solid; }
+  .corner.tr{ top:8px; right:8px; border-top:2px solid; border-right:2px solid; }
+  .corner.bl{ bottom:8px; left:8px; border-bottom:2px solid; border-left:2px solid; }
+  .corner.br{ bottom:8px; right:8px; border-bottom:2px solid; border-right:2px solid; }
+
+  .placeholder{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap: 8px;
+    color: var(--ink-soft);
+    font-size: 13px;
+    text-align:center;
+    padding: 0 20px;
+  }
+  .placeholder svg{ opacity:0.5; }
+
+  .slot-actions{
+    display:flex;
+    gap: 10px;
+    padding: 0 18px 18px;
+  }
+
+  button{
+    font-family:'IBM Plex Sans', sans-serif;
+    font-weight: 600;
+    font-size: 13px;
+    border-radius: 4px;
+    border: 1px solid var(--ink);
+    background: var(--ink);
+    color: #fff;
+    padding: 9px 14px;
+    cursor:pointer;
+    transition: transform 0.08s ease, opacity 0.15s ease;
+  }
+  button.secondary{
+    background: transparent;
+    color: var(--ink);
+    border-color: var(--line);
+  }
+  button:hover{ opacity:0.85; }
+  button:active{ transform: scale(0.98); }
+  button:disabled{ opacity:0.35; cursor:not-allowed; }
+  input[type=file]{ display:none; }
+
+  .assembly{
+    margin-top: 44px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 28px;
+  }
+  .assembly-head{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .sheet{
+    background: #FCFBF8;
+    border: 1px dashed var(--line);
+    border-radius: 4px;
+    padding: 28px;
+    display:flex;
+    gap: 20px;
+    align-items:center;
+    justify-content:center;
+    position:relative;
+    min-height: 180px;
+  }
+  .sheet .tick{
+    position:absolute;
+    top:0; bottom:0; left:50%;
+    width:1px;
+    background: repeating-linear-gradient(var(--line) 0 6px, transparent 6px 12px);
+    opacity: 0.9;
+  }
+  .sheet .pane{
+    flex:1;
+    max-width: 340px;
+    aspect-ratio: 85.6/53.98;
+    border-radius: 8px;
+    overflow:hidden;
+    background: #EFECE3;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+  }
+  .sheet .pane img{ width:100%; height:100%; object-fit:cover; display:block; }
+  .sheet .pane .placeholder{ font-size:12px; }
+
+  .export-row{
+    margin-top: 22px;
+    display:flex;
+    align-items:center;
+    gap: 14px;
+    flex-wrap: wrap;
+  }
+  .hint{
+    font-size: 12px;
+    color: var(--ink-soft);
+    font-family: 'IBM Plex Mono', monospace;
+  }
+
+  /* Crop modal */
+  .modal-overlay{
+    position:fixed; inset:0;
+    background: rgba(20,22,28,0.72);
+    display:none;
+    align-items:center;
+    justify-content:center;
+    z-index: 100;
+    padding: 20px;
+  }
+  .modal-overlay.open{ display:flex; }
+  .modal{
+    background: var(--surface);
+    border-radius: 6px;
+    width: 100%;
+    max-width: 640px;
+    overflow:hidden;
+  }
+  .modal-head{
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--line);
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+  }
+  .modal-head h2{
+    font-size: 15px;
+    margin:0;
+    font-family:'IBM Plex Mono', monospace;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .crop-stage{
+    background: #14161c;
+    max-height: 60vh;
+  }
+  .crop-stage img{ display:block; max-width:100%; }
+  .modal-foot{
+    padding: 16px 20px;
+    display:flex;
+    justify-content:flex-end;
+    gap: 10px;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div>
+      <p class="eyebrow">Document capture</p>
+      <h1>ID Card Scanner</h1>
+    </div>
+    <div class="doc-id">
+      FORM · SCAN-2<br>
+      SIDES: FRONT / BACK
+    </div>
+  </header>
+
+  <div class="slots">
+    <div class="slot" id="slot-front">
+      <div class="slot-head">
+        <span class="slot-label">01 · Front face</span>
+        <span class="slot-status" id="status-front">Empty</span>
+      </div>
+      <div class="card-frame" id="frame-front">
+        <div class="placeholder" id="placeholder-front">
+          <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="5" width="20" height="14" rx="2"/><circle cx="8" cy="12" r="2"/><path d="M14 10h5M14 14h3"/></svg>
+          <span>No image loaded</span>
+        </div>
+        <span class="corner tl"></span><span class="corner tr"></span>
+        <span class="corner bl"></span><span class="corner br"></span>
+      </div>
+      <div class="slot-actions">
+        <button id="btn-choose-front">Choose image</button>
+        <button class="secondary" id="btn-recrop-front" disabled>Re-crop</button>
+      </div>
+      <input type="file" accept="image/*" id="input-front">
+    </div>
+
+    <div class="slot" id="slot-back">
+      <div class="slot-head">
+        <span class="slot-label">02 · Back face</span>
+        <span class="slot-status" id="status-back">Empty</span>
+      </div>
+      <div class="card-frame" id="frame-back">
+        <div class="placeholder" id="placeholder-back">
+          <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M5 9h14M5 13h9M5 16h5"/></svg>
+          <span>No image loaded</span>
+        </div>
+        <span class="corner tl"></span><span class="corner tr"></span>
+        <span class="corner bl"></span><span class="corner br"></span>
+      </div>
+      <div class="slot-actions">
+        <button id="btn-choose-back">Choose image</button>
+        <button class="secondary" id="btn-recrop-back" disabled>Re-crop</button>
+      </div>
+      <input type="file" accept="image/*" id="input-back">
+    </div>
+  </div>
+
+  <div class="assembly">
+    <div class="assembly-head">
+      <div>
+        <p class="eyebrow" style="margin-bottom:2px;">Assembled sheet</p>
+        <span class="hint">Front and back placed side by side for a single-page copy</span>
+      </div>
+    </div>
+    <div class="sheet">
+      <div class="tick"></div>
+      <div class="pane" id="pane-front"><div class="placeholder"><span>Front</span></div></div>
+      <div class="pane" id="pane-back"><div class="placeholder"><span>Back</span></div></div>
+    </div>
+    <div class="export-row">
+      <button id="btn-export" disabled>Export as PDF</button>
+      <span class="hint" id="export-hint">Crop both sides to enable export</span>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="crop-modal">
+  <div class="modal">
+    <div class="modal-head">
+      <h2 id="crop-title">Crop image</h2>
+    </div>
+    <div class="crop-stage">
+      <img id="crop-image" src="" alt="">
+    </div>
+    <div class="modal-foot">
+      <button class="secondary" id="crop-cancel">Cancel</button>
+      <button id="crop-confirm">Use crop</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const state = { front: null, back: null };
+  let cropper = null;
+  let activeSide = null;
+
+  const els = {
+    inputFront: document.getElementById('input-front'),
+    inputBack: document.getElementById('input-back'),
+    chooseFront: document.getElementById('btn-choose-front'),
+    chooseBack: document.getElementById('btn-choose-back'),
+    recropFront: document.getElementById('btn-recrop-front'),
+    recropBack: document.getElementById('btn-recrop-back'),
+    frameFront: document.getElementById('frame-front'),
+    frameBack: document.getElementById('frame-back'),
+    placeholderFront: document.getElementById('placeholder-front'),
+    placeholderBack: document.getElementById('placeholder-back'),
+    statusFront: document.getElementById('status-front'),
+    statusBack: document.getElementById('status-back'),
+    paneFront: document.getElementById('pane-front'),
+    paneBack: document.getElementById('pane-back'),
+    exportBtn: document.getElementById('btn-export'),
+    exportHint: document.getElementById('export-hint'),
+    modal: document.getElementById('crop-modal'),
+    cropImage: document.getElementById('crop-image'),
+    cropTitle: document.getElementById('crop-title'),
+    cropCancel: document.getElementById('crop-cancel'),
+    cropConfirm: document.getElementById('crop-confirm'),
+  };
+
+  els.chooseFront.addEventListener('click', () => els.inputFront.click());
+  els.chooseBack.addEventListener('click', () => els.inputBack.click());
+  els.recropFront.addEventListener('click', () => { if(state.front) openCropFromDataUrl(state.front.original, 'front'); });
+  els.recropBack.addEventListener('click', () => { if(state.back) openCropFromDataUrl(state.back.original, 'back'); });
+
+  els.inputFront.addEventListener('change', e => handleFile(e, 'front'));
+  els.inputBack.addEventListener('change', e => handleFile(e, 'back'));
+
+  function handleFile(e, side){
+    const file = e.target.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = evt => openCropFromDataUrl(evt.target.result, side);
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  }
+
+  function openCropFromDataUrl(dataUrl, side){
+    activeSide = side;
+    els.cropTitle.textContent = side === 'front' ? 'Crop front face' : 'Crop back face';
+    els.cropImage.src = dataUrl;
+    if(!state[side]) state[side] = {};
+    state[side].original = dataUrl;
+    els.modal.classList.add('open');
+
+    if(cropper){ cropper.destroy(); cropper = null; }
+    els.cropImage.onload = () => {
+      cropper = new Cropper(els.cropImage, {
+        aspectRatio: 85.6 / 53.98,
+        viewMode: 1,
+        autoCropArea: 0.95,
+        background: false,
+        responsive: true,
+      });
+    };
+  }
+
+  els.cropCancel.addEventListener('click', closeModal);
+  els.modal.addEventListener('click', e => { if(e.target === els.modal) closeModal(); });
+
+  function closeModal(){
+    els.modal.classList.remove('open');
+    if(cropper){ cropper.destroy(); cropper = null; }
+    activeSide = null;
+  }
+
+  els.cropConfirm.addEventListener('click', () => {
+    if(!cropper || !activeSide) return;
+    const canvas = cropper.getCroppedCanvas({
+      width: 856,
+      height: 540,
+      imageSmoothingQuality: 'high',
+    });
+    const croppedUrl = canvas.toDataURL('image/jpeg', 0.92);
+    state[activeSide].cropped = croppedUrl;
+    renderSlot(activeSide);
+    closeModal();
+    checkReady();
+  });
+
+  function renderSlot(side){
+    const url = state[side].cropped;
+    const frame = side === 'front' ? els.frameFront : els.frameBack;
+    const placeholder = side === 'front' ? els.placeholderFront : els.placeholderBack;
+    const status = side === 'front' ? els.statusFront : els.statusBack;
+    const pane = side === 'front' ? els.paneFront : els.paneBack;
+    const recrop = side === 'front' ? els.recropFront : els.recropBack;
+
+    placeholder.style.display = 'none';
+    let img = frame.querySelector('img');
+    if(!img){
+      img = document.createElement('img');
+      frame.insertBefore(img, frame.firstChild);
+    }
+    img.src = url;
+
+    status.textContent = 'Cropped';
+    status.classList.add('ready');
+    recrop.disabled = false;
+
+    pane.innerHTML = '';
+    const paneImg = document.createElement('img');
+    paneImg.src = url;
+    pane.appendChild(paneImg);
+  }
+
+  function checkReady(){
+    const ready = state.front && state.front.cropped && state.back && state.back.cropped;
+    els.exportBtn.disabled = !ready;
+    els.exportHint.textContent = ready
+      ? 'Both sides ready — export when you like'
+      : 'Crop both sides to enable export';
+  }
+
+  els.exportBtn.addEventListener('click', () => {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+
+    const pageW = doc.internal.pageSize.getWidth();
+    const pageH = doc.internal.pageSize.getHeight();
+    const cardW = 85.6;
+    const cardH = 53.98;
+    const gap = 10;
+    const totalW = cardW * 2 + gap;
+    const startX = (pageW - totalW) / 2;
+    const startY = (pageH - cardH) / 2;
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(120,120,120);
+    doc.text('ID Document Scan', startX, startY - 6);
+
+    doc.setDrawColor(200,200,200);
+    doc.roundedRect(startX, startY, cardW, cardH, 2, 2);
+    doc.addImage(state.front.cropped, 'JPEG', startX, startY, cardW, cardH);
+
+    const x2 = startX + cardW + gap;
+    doc.roundedRect(x2, startY, cardW, cardH, 2, 2);
+    doc.addImage(state.back.cropped, 'JPEG', x2, startY, cardW, cardH);
+
+    doc.setFontSize(7.5);
+    doc.text('FRONT', startX, startY + cardH + 5);
+    doc.text('BACK', x2, startY + cardH + 5);
+
+    doc.save('id-card-scan.pdf');
+  });
+})();
+</script>
+</body>
+</html>
