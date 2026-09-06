@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MP4 → GIF Converter</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.js"></script>
+<style>
+  :root {
+    --bg: #0f1115;
+    --panel: #1a1d24;
+    --panel-2: #22262f;
+    --border: #2c313c;
+    --text: #e8eaed;
+    --muted: #9aa1ac;
+    --accent: #7c5cff;
+    --accent-2: #5ee6c2;
+    --danger: #ff6b6b;
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: radial-gradient(1200px 800px at 10% -10%, #1c2030 0%, var(--bg) 60%);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 32px 16px 80px;
+  }
+  .wrap { max-width: 920px; margin: 0 auto; }
+  h1 {
+    font-size: 1.6rem;
+    margin: 0 0 6px;
+    letter-spacing: -0.02em;
+  }
+  .sub { color: var(--muted); margin: 0 0 28px; font-size: 0.95rem; }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 22px;
+    margin-bottom: 20px;
+  }
+
+  #dropzone {
+    border: 2px dashed var(--border);
+    border-radius: var(--radius);
+    padding: 40px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color .15s, background .15s;
+    color: var(--muted);
+  }
+  #dropzone:hover, #dropzone.drag {
+    border-color: var(--accent);
+    background: #1e2029;
+    color: var(--text);
+  }
+  #dropzone svg { margin-bottom: 10px; opacity: 0.8; }
+  #fileInput { display: none; }
+
+  video, #previewGif {
+    width: 100%;
+    border-radius: 10px;
+    display: block;
+    background: #000;
+  }
+
+  .row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 16px;
+    margin-top: 18px;
+  }
+  label {
+    display: block;
+    font-size: 0.8rem;
+    color: var(--muted);
+    margin-bottom: 6px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+  input[type="number"], select {
+    width: 100%;
+    padding: 10px 12px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-size: 0.95rem;
+  }
+  input[type="range"] {
+    width: 100%;
+    accent-color: var(--accent);
+  }
+  .field-hint { font-size: 0.75rem; color: var(--muted); margin-top: 4px; }
+
+  .trim-labels { display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--muted); margin-top: 4px; }
+
+  .checkbox-row { display: flex; align-items: center; gap: 8px; margin-top: 18px; }
+  .checkbox-row input { accent-color: var(--accent); width: 16px; height: 16px; }
+  .checkbox-row label { margin: 0; text-transform: none; font-weight: 500; font-size: 0.9rem; color: var(--text); }
+
+  button.primary {
+    background: linear-gradient(135deg, var(--accent), #5b3df0);
+    color: white;
+    border: none;
+    padding: 14px 22px;
+    border-radius: 10px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    width: 100%;
+    margin-top: 22px;
+    transition: filter .15s, transform .05s;
+  }
+  button.primary:hover { filter: brightness(1.08); }
+  button.primary:active { transform: scale(0.99); }
+  button.primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  button.secondary {
+    background: var(--panel-2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    padding: 10px 16px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.9rem;
+  }
+  button.secondary:hover { border-color: var(--accent); }
+
+  .progress-wrap { margin-top: 18px; display: none; }
+  .progress-track {
+    height: 10px;
+    background: var(--panel-2);
+    border-radius: 6px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+  }
+  .progress-bar {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    transition: width .15s;
+  }
+  .progress-text { font-size: 0.8rem; color: var(--muted); margin-top: 6px; }
+
+  .result-row {
+    display: flex;
+    gap: 12px;
+    margin-top: 16px;
+    flex-wrap: wrap;
+  }
+  a.download-btn {
+    display: inline-block;
+    background: var(--accent-2);
+    color: #08221a;
+    font-weight: 700;
+    padding: 12px 20px;
+    border-radius: 10px;
+    text-decoration: none;
+    font-size: 0.95rem;
+  }
+  .filesize { color: var(--muted); font-size: 0.85rem; align-self: center; }
+
+  .badge {
+    display: inline-block;
+    font-size: 0.75rem;
+    padding: 3px 9px;
+    border-radius: 999px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    margin-left: 8px;
+  }
+
+  #resultCard, #optionsCard { display: none; }
+  .meta { font-size: 0.85rem; color: var(--muted); margin-top: 10px; }
+  .error-box {
+    display: none;
+    background: #2a1518;
+    border: 1px solid var(--danger);
+    color: #ffb4b4;
+    padding: 12px 14px;
+    border-radius: 8px;
+    margin-top: 14px;
+    font-size: 0.88rem;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>MP4 → GIF Converter</h1>
+  <p class="sub">Everything runs locally in your browser — nothing is uploaded anywhere.</p>
+
+  <div class="card" id="uploadCard">
+    <div id="dropzone">
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 16V4M12 4l-4 4M12 4l4 4"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
+      <div><strong>Click to choose a video</strong> or drag & drop an MP4 here</div>
+      <div class="field-hint">MP4, WebM, MOV — processed entirely on your device</div>
+    </div>
+    <input type="file" id="fileInput" accept="video/*">
+    <video id="videoPreview" controls style="display:none; margin-top:16px;"></video>
+    <div class="meta" id="videoMeta"></div>
+  </div>
+
+  <div class="card" id="optionsCard">
+    <h3 style="margin-top:0;">Options</h3>
+
+    <div class="row">
+      <div>
+        <label>Trim start (s)</label>
+        <input type="range" id="trimStart" min="0" max="0" step="0.1" value="0">
+        <div class="trim-labels"><span id="trimStartVal">0.0s</span></div>
+      </div>
+      <div>
+        <label>Trim end (s)</label>
+        <input type="range" id="trimEnd" min="0" max="0" step="0.1" value="0">
+        <div class="trim-labels"><span id="trimEndVal">0.0s</span></div>
+      </div>
+    </div>
+
+    <div class="row">
+      <div>
+        <label>FPS</label>
+        <input type="number" id="fpsInput" min="1" max="30" value="10">
+        <div class="field-hint">Frames per second (1–30). Lower = smaller file.</div>
+      </div>
+      <div>
+        <label>Resolution preset</label>
+        <select id="resPreset">
+          <option value="1">100% (original)</option>
+          <option value="0.75">75%</option>
+          <option value="0.5" selected>50%</option>
+          <option value="0.33">33%</option>
+          <option value="0.25">25%</option>
+          <option value="custom">Custom width</option>
+        </select>
+      </div>
+      <div id="customWidthWrap" style="display:none;">
+        <label>Custom width (px)</label>
+        <input type="number" id="customWidth" min="16" max="2000" value="480">
+        <div class="field-hint">Height auto-scales to keep aspect ratio</div>
+      </div>
+      <div>
+        <label>Quality</label>
+        <select id="qualitySelect">
+          <option value="1">Best (slowest)</option>
+          <option value="5">High</option>
+          <option value="10" selected>Balanced</option>
+          <option value="15">Low</option>
+          <option value="20">Smallest file</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="checkbox-row">
+      <input type="checkbox" id="loopCheckbox" checked>
+      <label for="loopCheckbox">Loop GIF forever</label>
+    </div>
+
+    <div class="meta" id="estimateMeta"></div>
+
+    <button class="primary" id="convertBtn">Convert to GIF</button>
+
+    <div class="progress-wrap" id="progressWrap">
+      <div class="progress-track"><div class="progress-bar" id="progressBar"></div></div>
+      <div class="progress-text" id="progressText">Preparing…</div>
+    </div>
+
+    <div class="error-box" id="errorBox"></div>
+  </div>
+
+  <div class="card" id="resultCard">
+    <h3 style="margin-top:0;">Your GIF <span class="badge" id="resultBadge"></span></h3>
+    <img id="previewGif" alt="Converted GIF preview">
+    <div class="result-row">
+      <a class="download-btn" id="downloadLink" download="converted.gif">Download GIF</a>
+      <button class="secondary" id="resetBtn">Convert another</button>
+      <span class="filesize" id="fileSizeLabel"></span>
+    </div>
+  </div>
+</div>
+
+<script>
+const dropzone = document.getElementById('dropzone');
+const fileInput = document.getElementById('fileInput');
+const videoPreview = document.getElementById('videoPreview');
+const videoMeta = document.getElementById('videoMeta');
+const optionsCard = document.getElementById('optionsCard');
+const resultCard = document.getElementById('resultCard');
+
+const trimStart = document.getElementById('trimStart');
+const trimEnd = document.getElementById('trimEnd');
+const trimStartVal = document.getElementById('trimStartVal');
+const trimEndVal = document.getElementById('trimEndVal');
+const fpsInput = document.getElementById('fpsInput');
+const resPreset = document.getElementById('resPreset');
+const customWidthWrap = document.getElementById('customWidthWrap');
+const customWidth = document.getElementById('customWidth');
+const qualitySelect = document.getElementById('qualitySelect');
+const loopCheckbox = document.getElementById('loopCheckbox');
+const estimateMeta = document.getElementById('estimateMeta');
+
+const convertBtn = document.getElementById('convertBtn');
+const progressWrap = document.getElementById('progressWrap');
+const progressBar = document.getElementById('progressBar');
+const progressText = document.getElementById('progressText');
+const errorBox = document.getElementById('errorBox');
+
+const previewGif = document.getElementById('previewGif');
+const downloadLink = document.getElementById('downloadLink');
+const fileSizeLabel = document.getElementById('fileSizeLabel');
+const resultBadge = document.getElementById('resultBadge');
+const resetBtn = document.getElementById('resetBtn');
+
+let videoFile = null;
+let videoDuration = 0;
+let videoWidth = 0;
+let videoHeight = 0;
+
+dropzone.addEventListener('click', () => fileInput.click());
+dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag'); });
+dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag'));
+dropzone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropzone.classList.remove('drag');
+  if (e.dataTransfer.files.length) loadVideo(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', e => {
+  if (e.target.files.length) loadVideo(e.target.files[0]);
+});
+
+function loadVideo(file) {
+  hideError();
+  videoFile = file;
+  const url = URL.createObjectURL(file);
+  videoPreview.src = url;
+  videoPreview.style.display = 'block';
+
+  videoPreview.onloadedmetadata = () => {
+    videoDuration = videoPreview.duration;
+    videoWidth = videoPreview.videoWidth;
+    videoHeight = videoPreview.videoHeight;
+
+    videoMeta.textContent = `${file.name} · ${videoWidth}×${videoHeight} · ${videoDuration.toFixed(1)}s`;
+
+    trimStart.min = 0; trimStart.max = videoDuration; trimStart.step = 0.1; trimStart.value = 0;
+    trimEnd.min = 0; trimEnd.max = videoDuration; trimEnd.step = 0.1; trimEnd.value = videoDuration;
+    trimStartVal.textContent = '0.0s';
+    trimEndVal.textContent = videoDuration.toFixed(1) + 's';
+
+    optionsCard.style.display = 'block';
+    resultCard.style.display = 'none';
+    updateEstimate();
+  };
+}
+
+trimStart.addEventListener('input', () => {
+  if (parseFloat(trimStart.value) >= parseFloat(trimEnd.value)) {
+    trimStart.value = Math.max(0, parseFloat(trimEnd.value) - 0.1);
+  }
+  trimStartVal.textContent = parseFloat(trimStart.value).toFixed(1) + 's';
+  updateEstimate();
+});
+trimEnd.addEventListener('input', () => {
+  if (parseFloat(trimEnd.value) <= parseFloat(trimStart.value)) {
+    trimEnd.value = Math.min(videoDuration, parseFloat(trimStart.value) + 0.1);
+  }
+  trimEndVal.textContent = parseFloat(trimEnd.value).toFixed(1) + 's';
+  updateEstimate();
+});
+fpsInput.addEventListener('input', updateEstimate);
+resPreset.addEventListener('change', () => {
+  customWidthWrap.style.display = resPreset.value === 'custom' ? 'block' : 'none';
+  updateEstimate();
+});
+customWidth.addEventListener('input', updateEstimate);
+
+function getTargetDimensions() {
+  let scale;
+  if (resPreset.value === 'custom') {
+    const w = Math.max(16, parseInt(customWidth.value) || videoWidth);
+    scale = w / videoWidth;
+  } else {
+    scale = parseFloat(resPreset.value);
+  }
+  let w = Math.round(videoWidth * scale);
+  let h = Math.round(videoHeight * scale);
+  w = w % 2 === 0 ? w : w - 1;
+  h = h % 2 === 0 ? h : h - 1;
+  return { w: Math.max(2, w), h: Math.max(2, h) };
+}
+
+function updateEstimate() {
+  if (!videoFile) return;
+  const start = parseFloat(trimStart.value);
+  const end = parseFloat(trimEnd.value);
+  const fps = Math.min(30, Math.max(1, parseInt(fpsInput.value) || 10));
+  const duration = Math.max(0, end - start);
+  const frameCount = Math.max(1, Math.round(duration * fps));
+  const { w, h } = getTargetDimensions();
+  estimateMeta.textContent = `Output: ~${frameCount} frames at ${fps} fps, ${w}×${h}px, ${duration.toFixed(1)}s duration.`;
+}
+
+function showError(msg) {
+  errorBox.textContent = msg;
+  errorBox.style.display = 'block';
+}
+function hideError() {
+  errorBox.style.display = 'none';
+}
+
+convertBtn.addEventListener('click', async () => {
+  if (!videoFile) return;
+  hideError();
+  convertBtn.disabled = true;
+  progressWrap.style.display = 'block';
+  progressBar.style.width = '0%';
+  progressText.textContent = 'Extracting frames…';
+
+  try {
+    await convertToGif();
+  } catch (err) {
+    console.error(err);
+    showError('Conversion failed: ' + (err && err.message ? err.message : err));
+  } finally {
+    convertBtn.disabled = false;
+  }
+});
+
+let cachedWorkerBlobUrl = null;
+async function getWorkerScriptUrl() {
+  if (cachedWorkerBlobUrl) return cachedWorkerBlobUrl;
+  const resp = await fetch('https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.worker.js');
+  if (!resp.ok) throw new Error('Could not fetch gif.worker.js (HTTP ' + resp.status + ')');
+  const text = await resp.text();
+  const blob = new Blob([text], { type: 'application/javascript' });
+  cachedWorkerBlobUrl = URL.createObjectURL(blob);
+  return cachedWorkerBlobUrl;
+}
+
+async function convertToGif() {
+  const start = parseFloat(trimStart.value);
+  const end = parseFloat(trimEnd.value);
+  const fps = Math.min(30, Math.max(1, parseInt(fpsInput.value) || 10));
+  const quality = parseInt(qualitySelect.value);
+  const loop = loopCheckbox.checked;
+  const { w, h } = getTargetDimensions();
+  const duration = end - start;
+  const frameInterval = 1 / fps;
+  const frameCount = Math.max(1, Math.round(duration * fps));
+
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d');
+
+  progressText.textContent = 'Loading encoder…';
+  const workerScriptUrl = await getWorkerScriptUrl();
+
+  const gif = new GIF({
+    workers: 2,
+    quality: quality,
+    width: w,
+    height: h,
+    workerScript: workerScriptUrl,
+    repeat: loop ? 0 : -1
+  });
+
+  // Use a separate, isolated video element for seeking/drawing
+  const seeker = document.createElement('video');
+  seeker.src = videoPreview.src;
+  seeker.muted = true;
+  seeker.playsInline = true;
+  await new Promise((resolve, reject) => {
+    seeker.onloadedmetadata = resolve;
+    seeker.onerror = () => reject(new Error('Could not load video for frame extraction'));
+  });
+
+  for (let i = 0; i < frameCount; i++) {
+    const t = start + i * frameInterval;
+    await seekTo(seeker, Math.min(t, videoDuration - 0.01));
+    ctx.drawImage(seeker, 0, 0, w, h);
+    gif.addFrame(ctx, { copy: true, delay: Math.round(1000 / fps) });
+
+    progressBar.style.width = Math.round(((i + 1) / frameCount) * 45) + '%';
+    progressText.textContent = `Extracting frame ${i + 1} of ${frameCount}…`;
+    // yield to UI thread
+    await new Promise(r => setTimeout(r, 0));
+  }
+
+  progressText.textContent = 'Encoding GIF…';
+
+  gif.on('progress', p => {
+    const pct = 45 + Math.round(p * 55);
+    progressBar.style.width = pct + '%';
+    progressText.textContent = `Encoding GIF… ${Math.round(p * 100)}%`;
+  });
+
+  gif.on('finished', blob => {
+    const url = URL.createObjectURL(blob);
+    previewGif.src = url;
+    downloadLink.href = url;
+    const baseName = (videoFile.name || 'video').replace(/\.[^/.]+$/, '');
+    downloadLink.download = `${baseName}.gif`;
+    fileSizeLabel.textContent = formatBytes(blob.size);
+    resultBadge.textContent = `${w}×${h} · ${fps}fps`;
+    progressWrap.style.display = 'none';
+    resultCard.style.display = 'block';
+    resultCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+
+  gif.render();
+}
+
+function seekTo(video, time) {
+  return new Promise((resolve, reject) => {
+    function onSeeked() {
+      video.removeEventListener('seeked', onSeeked);
+      video.removeEventListener('error', onErr);
+      resolve();
+    }
+    function onErr() {
+      video.removeEventListener('seeked', onSeeked);
+      video.removeEventListener('error', onErr);
+      reject(new Error('Seek failed'));
+    }
+    video.addEventListener('seeked', onSeeked);
+    video.addEventListener('error', onErr);
+    video.currentTime = time;
+  });
+}
+
+function formatBytes(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+}
+
+resetBtn.addEventListener('click', () => {
+  resultCard.style.display = 'none';
+  optionsCard.style.display = 'block';
+});
+</script>
+</body>
+</html>
