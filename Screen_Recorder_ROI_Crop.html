@@ -1,0 +1,1316 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>專業螢幕錄影、編輯與 GIF 轉換器 (Default 2K)</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.js"></script>
+    <style>
+        :root {
+            --primary: #2563eb; /* 藍色 */
+            --success: #16a34a; /* 綠色 */
+            --danger: #dc2626;  /* 紅色 */
+            --accent: #7c5cff;  /* 紫色 (GIF) */
+            --bg: #f1f5f9;      /* 背景灰 */
+            --card-bg: #ffffff; /* 卡片白 */
+            --text: #0f172a;    /* 深色文字 */
+            --border: #cbd5e1;  /* 邊框灰 */
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Microsoft JhengHei", "Segoe UI", Roboto, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .main-wrapper {
+            width: 100%;
+            max-width: 800px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            padding-bottom: 40px;
+        }
+
+        .card {
+            background: var(--card-bg);
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            border: 1px solid #e2e8f0;
+        }
+
+        h2 {
+            margin-top: 0;
+            font-size: 1.4rem;
+            border-bottom: 2px solid var(--bg);
+            padding-bottom: 15px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .step-badge {
+            background: var(--text);
+            color: white;
+            border-radius: 50%;
+            width: 28px;
+            height: 28px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.9rem;
+            margin-right: 10px;
+        }
+
+        .controls-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            font-size: 0.9rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            color: #475569;
+        }
+
+        select, input[type="number"], input[type="file"] {
+            width: 100%;
+            padding: 0.7rem;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            box-sizing: border-box;
+            background: #fff;
+            font-size: 1rem;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            accent-color: var(--primary);
+        }
+
+        .btn-group { display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
+
+        button {
+            flex: 1;
+            min-width: 140px;
+            padding: 0.8rem;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            color: white;
+            font-size: 1rem;
+        }
+        button:hover { opacity: 0.9; transform: translateY(-1px); }
+        button:active { transform: translateY(0); }
+        button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; background-color: #94a3b8; }
+
+        .btn-primary { background-color: var(--primary); }
+        .btn-danger { background-color: var(--danger); }
+        .btn-success { background-color: var(--success); }
+        .btn-secondary { background-color: #64748b; }
+        .btn-accent { background: linear-gradient(135deg, var(--accent), #5b3df0); }
+
+        video, #previewGif {
+            width: 100%;
+            background: #000;
+            border-radius: 8px;
+            margin-top: 15px;
+            max-height: 500px;
+            outline: none;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+            display: block;
+        }
+
+        /* 錄影預覽與 ROI 框選容器 */
+        .video-wrapper {
+            position: relative;
+            width: 100%;
+            margin-top: 15px;
+            background: #000;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .video-wrapper video {
+            margin-top: 0;
+            display: block;
+            box-shadow: none;
+        }
+
+        .roi-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            cursor: crosshair;
+            user-select: none;
+            z-index: 10;
+        }
+
+        .roi-box {
+            position: absolute;
+            border: 2px dashed #38bdf8;
+            background-color: rgba(56, 189, 248, 0.2);
+            box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.55);
+            pointer-events: none;
+            display: none;
+        }
+
+        .roi-info-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: #f8fafc;
+            border: 1px solid var(--border);
+            padding: 8px 14px;
+            border-radius: 8px;
+            margin-top: 12px;
+            font-size: 0.85rem;
+            color: #334155;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .roi-badge {
+            background: #e0f2fe;
+            color: #0369a1;
+            padding: 3px 8px;
+            border-radius: 6px;
+            font-weight: 600;
+            font-family: monospace;
+        }
+
+        .btn-sm {
+            flex: 0 0 auto;
+            min-width: auto;
+            padding: 5px 12px;
+            font-size: 0.8rem;
+            border-radius: 6px;
+        }
+
+        .hint-text {
+            font-size: 0.82rem;
+            color: #64748b;
+            margin-top: 4px;
+        }
+
+        /* 編輯器控制項區域 */
+        .editor-controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            align-items: flex-end;
+            margin-top: 20px;
+            background: #f8fafc;
+            padding: 20px;
+            border-radius: 10px;
+            border: 1px dashed var(--border);
+        }
+
+        .control-item { flex: 1; min-width: 120px; }
+        
+        #progressBar {
+            width: 100%;
+            height: 10px;
+            background-color: #e2e8f0;
+            border-radius: 5px;
+            margin-top: 15px;
+            overflow: hidden;
+            display: none;
+        }
+        #progressFill {
+            height: 100%;
+            background-color: var(--success);
+            width: 0%;
+            transition: width 0.1s linear;
+        }
+
+        .hidden { display: none !important; }
+        
+        .tag {
+            background: #eff6ff;
+            color: var(--primary);
+            padding: 4px 10px;
+            border-radius: 15px;
+            font-size: 0.75rem;
+            font-weight: bold;
+        }
+
+        /* ==================== 3. MP4 轉 GIF 專用樣式 ==================== */
+        #gifDropzone {
+            border: 2px dashed var(--border);
+            border-radius: 10px;
+            padding: 32px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: border-color .15s, background .15s;
+            color: #64748b;
+            background: #f8fafc;
+        }
+        #gifDropzone:hover, #gifDropzone.drag {
+            border-color: var(--accent);
+            background: #f5f3ff;
+            color: var(--text);
+        }
+        #gifDropzone svg { margin-bottom: 8px; opacity: 0.8; }
+        #gifFileInput { display: none; }
+
+        .gif-options-panel {
+            background: #f8fafc;
+            padding: 20px;
+            border-radius: 10px;
+            border: 1px dashed var(--border);
+            margin-top: 18px;
+            display: none;
+        }
+
+        .gif-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .trim-labels {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.8rem;
+            color: #64748b;
+            margin-top: 4px;
+        }
+
+        .checkbox-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 16px;
+        }
+        .checkbox-row input {
+            accent-color: var(--accent);
+            width: 16px;
+            height: 16px;
+        }
+        .checkbox-row label {
+            margin: 0;
+            font-weight: 500;
+            font-size: 0.9rem;
+            color: var(--text);
+        }
+
+        .gif-progress-wrap { margin-top: 18px; display: none; }
+        .gif-progress-track {
+            height: 10px;
+            background: #e2e8f0;
+            border-radius: 6px;
+            overflow: hidden;
+        }
+        .gif-progress-bar {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, var(--accent), #10b981);
+            transition: width .15s;
+        }
+        .gif-progress-text { font-size: 0.85rem; color: #64748b; margin-top: 6px; text-align: center; }
+
+        .gif-result-panel {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #e2e8f0;
+            display: none;
+        }
+        .result-row {
+            display: flex;
+            gap: 12px;
+            margin-top: 15px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        a.download-btn {
+            display: inline-block;
+            background: var(--success);
+            color: white;
+            font-weight: 600;
+            padding: 12px 20px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-size: 0.95rem;
+            transition: opacity .2s;
+        }
+        a.download-btn:hover { opacity: 0.9; }
+        .filesize { color: #64748b; font-size: 0.85rem; }
+        .meta-text { font-size: 0.85rem; color: #64748b; margin-top: 10px; }
+        .error-box {
+            display: none;
+            background: #fef2f2;
+            border: 1px solid var(--danger);
+            color: #b91c1c;
+            padding: 12px 14px;
+            border-radius: 8px;
+            margin-top: 14px;
+            font-size: 0.88rem;
+        }
+    </style>
+</head>
+<body>
+
+<div class="main-wrapper">
+    
+    <!-- ==================== 1. 螢幕錄影 (含錄影前 ROI 選取) ==================== -->
+    <div class="card">
+        <h2>
+            <span><span class="step-badge">1</span> 螢幕錄影 (支援預覽框選 ROI)</span>
+            <span class="tag">MP4 / ROI 支援</span>
+        </h2>
+        
+        <div class="controls-grid">
+            <div>
+                <label>畫面比例 (Aspect Ratio)</label>
+                <select id="ratioSelect">
+                    <option value="0">自由比例 (依來源或 ROI 決定)</option>
+                    <option value="1.7777777778" selected>16:9 (電腦/YouTube 標準)</option>
+                    <option value="1.3333333333">4:3 (簡報/舊式螢幕)</option>
+                    <option value="1">1:1 (正方形/IG)</option>
+                    <option value="0.5625">9:16 (手機直式)</option>
+                </select>
+            </div>
+            <div>
+                <label>影像品質 (Bitrate)</label>
+                <select id="qualitySelect">
+                    <option value="50000000">Ultra (50 Mbps - 4K)</option>
+                    <option value="20000000" selected>Very High (20 Mbps - 2K)</option>
+                    <option value="8000000">High (8 Mbps - 1080p)</option>
+                    <option value="2500000">Medium (2.5 Mbps - 720p)</option>
+                    <option value="1000000">Low (1 Mbps - 檔案小)</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="btn-group">
+            <button id="selectScreenBtn" class="btn-primary">1. 選擇畫面與框選範圍 (ROI)</button>
+            <button id="startRecordBtn" class="btn-success hidden">2. 開始錄影</button>
+            <button id="stopBtn" class="btn-danger hidden">停止並儲存</button>
+            <button id="cancelPreviewBtn" class="btn-secondary hidden">取消重選</button>
+        </div>
+
+        <!-- 錄影預覽與 ROI 互動區 -->
+        <div id="previewWrapper" class="video-wrapper hidden">
+            <video id="preview" autoplay muted playsinline></video>
+            <div id="recRoiOverlay" class="roi-overlay" title="按住滑鼠左鍵拖曳以框選錄影範圍">
+                <div id="recRoiBox" class="roi-box"></div>
+            </div>
+        </div>
+
+        <div id="recRoiBar" class="roi-info-bar hidden">
+            <div>
+                <span>🎯 錄影範圍 (ROI)：</span>
+                <span id="recRoiText" class="roi-badge">全畫面 (未裁切)</span>
+                <div class="hint-text">提示：直接在上方預覽畫面按住滑鼠左鍵拖曳，即可框選要錄製的局部區域。</div>
+            </div>
+            <button id="resetRecRoiBtn" class="btn-secondary btn-sm">重置為全畫面</button>
+        </div>
+
+        <div id="statusMsg" style="margin-top: 10px; color: #64748b; font-size: 0.9rem; text-align: center;">準備就緒：請先點擊「1. 選擇畫面與框選範圍」</div>
+        <canvas id="recCanvas" style="display: none;"></canvas>
+    </div>
+
+    <!-- ==================== 2. 影片編輯 (原始剪輯 & 變速功能) ==================== -->
+    <div class="card">
+        <h2>
+            <span><span class="step-badge">2</span> 影片編輯</span>
+            <span class="tag">剪輯 & 變速</span>
+        </h2>
+        
+        <label>上傳影片檔 (MP4/WebM/MOV)</label>
+        <input type="file" id="fileInput" accept="video/*">
+        
+        <video id="editPlayer" controls class="hidden"></video>
+        
+        <div id="editorControls" class="editor-controls hidden">
+            <div class="control-item">
+                <label>開始時間 (秒)</label>
+                <input type="number" id="startTime" value="0" min="0" step="0.1">
+            </div>
+            <div class="control-item">
+                <label>結束時間 (秒)</label>
+                <input type="number" id="endTime" value="0" min="0" step="0.1">
+            </div>
+            <div class="control-item">
+                <label>播放速度 (Speed)</label>
+                <select id="speedSelect">
+                    <option value="0.5">0.5x (慢動作)</option>
+                    <option value="1" selected>1x (正常)</option>
+                    <option value="1.5">1.5x (微快)</option>
+                    <option value="2">2x (兩倍速)</option>
+                    <option value="4">4x (縮時)</option>
+                </select>
+            </div>
+            <div class="control-item" style="flex: 0 0 auto;">
+                <label>&nbsp;</label>
+                <button id="trimBtn" class="btn-success">處理並下載</button>
+            </div>
+        </div>
+
+        <div id="progressBar">
+            <div id="progressFill"></div>
+        </div>
+        <div id="editStatus" style="margin-top: 10px; color: #64748b; font-size: 0.9rem; text-align: center;"></div>
+        
+        <canvas id="processCanvas" style="display: none;"></canvas>
+    </div>
+
+    <!-- ==================== 3. MP4 轉 GIF 轉換器 (MP4 → GIF Converter) ==================== -->
+    <div class="card">
+        <h2>
+            <span><span class="step-badge">3</span> MP4 → GIF 轉換器</span>
+            <span class="tag" style="background: #f5f3ff; color: var(--accent);">本地轉換</span>
+        </h2>
+
+        <div id="gifDropzone">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 16V4M12 4l-4 4M12 4l4 4"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
+            <div><strong>點擊選擇影片檔</strong> 或將 MP4 拖曳至此處</div>
+            <div class="hint-text">支援 MP4, WebM, MOV — 全程於瀏覽器本地處理，不會上傳至任何伺服器</div>
+        </div>
+        <input type="file" id="gifFileInput" accept="video/*">
+        <video id="gifVideoPreview" controls style="display:none; margin-top:16px;"></video>
+        <div class="meta-text" id="gifVideoMeta"></div>
+
+        <div class="gif-options-panel" id="gifOptionsCard">
+            <h3 style="margin-top:0; font-size:1.1rem;">轉換設定 (Options)</h3>
+
+            <div class="gif-row">
+                <div>
+                    <label>裁切起點 Trim start (s)</label>
+                    <input type="range" id="gifTrimStart" min="0" max="0" step="0.1" value="0">
+                    <div class="trim-labels"><span id="gifTrimStartVal">0.0s</span></div>
+                </div>
+                <div>
+                    <label>裁切終點 Trim end (s)</label>
+                    <input type="range" id="gifTrimEnd" min="0" max="0" step="0.1" value="0">
+                    <div class="trim-labels"><span id="gifTrimEndVal">0.0s</span></div>
+                </div>
+            </div>
+
+            <div class="gif-row">
+                <div>
+                    <label>影格率 (FPS)</label>
+                    <input type="number" id="gifFpsInput" min="1" max="30" value="10">
+                    <div class="hint-text">每秒影格數 (1–30)，數值越低檔案越小</div>
+                </div>
+                <div>
+                    <label>解析度比例 (Resolution)</label>
+                    <select id="gifResPreset">
+                        <option value="1">100% (原始尺寸)</option>
+                        <option value="0.75">75%</option>
+                        <option value="0.5" selected>50%</option>
+                        <option value="0.33">33%</option>
+                        <option value="0.25">25%</option>
+                        <option value="custom">自訂寬度 (Custom width)</option>
+                    </select>
+                </div>
+                <div id="gifCustomWidthWrap" style="display:none;">
+                    <label>自訂寬度 (px)</label>
+                    <input type="number" id="gifCustomWidth" min="16" max="2000" value="480">
+                    <div class="hint-text">高度將自動依比例縮放</div>
+                </div>
+                <div>
+                    <label>畫質 (Quality)</label>
+                    <select id="gifQualitySelect">
+                        <option value="1">最佳 (最慢 Best)</option>
+                        <option value="5">高 (High)</option>
+                        <option value="10" selected>平衡 (Balanced)</option>
+                        <option value="15">低 (Low)</option>
+                        <option value="20">最小檔案 (Smallest file)</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="checkbox-row">
+                <input type="checkbox" id="gifLoopCheckbox" checked>
+                <label for="gifLoopCheckbox">無限循環播放 (Loop GIF forever)</label>
+            </div>
+
+            <div class="meta-text" id="gifEstimateMeta"></div>
+
+            <button class="btn-accent" id="gifConvertBtn" style="width:100%; margin-top:18px;">開始轉換為 GIF (Convert to GIF)</button>
+
+            <div class="gif-progress-wrap" id="gifProgressWrap">
+                <div class="gif-progress-track"><div class="gif-progress-bar" id="gifProgressBar"></div></div>
+                <div class="gif-progress-text" id="gifProgressText">Preparing…</div>
+            </div>
+
+            <div class="error-box" id="gifErrorBox"></div>
+        </div>
+
+        <div class="gif-result-panel" id="gifResultCard">
+            <h3 style="margin-top:0; font-size:1.1rem; display:flex; align-items:center; gap:10px;">
+                <span>您的 GIF 已完成</span>
+                <span class="roi-badge" id="gifResultBadge"></span>
+            </h3>
+            <img id="previewGif" alt="Converted GIF preview">
+            <div class="result-row">
+                <a class="download-btn" id="gifDownloadLink" download="converted.gif">下載 GIF (Download GIF)</a>
+                <button class="btn-secondary" id="gifResetBtn" style="flex:0 0 auto; padding:12px 18px;">重新調整設定</button>
+                <span class="filesize" id="gifFileSizeLabel"></span>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    // ==========================================
+    // 共用工具與 ROI 座標換算
+    // ==========================================
+    function getSupportedMimeType() {
+        const types = [
+            "video/mp4",
+            "video/webm;codecs=vp9",
+            "video/webm"
+        ];
+        for (const type of types) {
+            if (MediaRecorder.isTypeSupported(type)) {
+                return type;
+            }
+        }
+        return "";
+    }
+
+    function downloadBlob(blob, ext, prefix) {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.style.display = 'none';
+        a.href = url;
+        
+        const now = new Date();
+        const timestamp = `${now.getHours()}${now.getMinutes()}${now.getSeconds()}`;
+        a.download = `${prefix}_${timestamp}.${ext}`;
+        
+        document.body.appendChild(a);
+        a.click();
+        
+        setTimeout(() => {
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+        }, 100);
+    }
+
+    /**
+     * 計算 <video> 元素內實際影像渲染區域 (排除黑邊 letterboxing)
+     */
+    function getVideoDisplayedRect(videoEl) {
+        const rect = videoEl.getBoundingClientRect();
+        const vw = videoEl.videoWidth;
+        const vh = videoEl.videoHeight;
+        if (!vw || !vh) {
+            return { left: 0, top: 0, width: rect.width, height: rect.height, scaleX: 1, scaleY: 1 };
+        }
+        const videoRatio = vw / vh;
+        const elemRatio = rect.width / rect.height;
+        let renderW, renderH, offsetX, offsetY;
+
+        if (elemRatio > videoRatio) {
+            renderH = rect.height;
+            renderW = renderH * videoRatio;
+            offsetX = (rect.width - renderW) / 2;
+            offsetY = 0;
+        } else {
+            renderW = rect.width;
+            renderH = renderW / videoRatio;
+            offsetX = 0;
+            offsetY = (rect.height - renderH) / 2;
+        }
+        return {
+            left: offsetX,
+            top: offsetY,
+            width: renderW,
+            height: renderH,
+            scaleX: vw / renderW,
+            scaleY: vh / renderH
+        };
+    }
+
+    /**
+     * 綁定錄影預覽畫面的滑鼠拖曳選取 ROI 事件
+     */
+    function setupRoiSelector(overlayEl, boxEl, videoEl, onRoiChange) {
+        let isDragging = false;
+        let startX = 0, startY = 0;
+
+        overlayEl.addEventListener('mousedown', (e) => {
+            if (!videoEl.videoWidth) return;
+            isDragging = true;
+            const rect = overlayEl.getBoundingClientRect();
+            const vRect = getVideoDisplayedRect(videoEl);
+
+            startX = Math.max(vRect.left, Math.min(e.clientX - rect.left, vRect.left + vRect.width));
+            startY = Math.max(vRect.top, Math.min(e.clientY - rect.top, vRect.top + vRect.height));
+
+            boxEl.style.left = startX + 'px';
+            boxEl.style.top = startY + 'px';
+            boxEl.style.width = '0px';
+            boxEl.style.height = '0px';
+            boxEl.style.display = 'block';
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+            const rect = overlayEl.getBoundingClientRect();
+            const vRect = getVideoDisplayedRect(videoEl);
+
+            const curX = Math.max(vRect.left, Math.min(e.clientX - rect.left, vRect.left + vRect.width));
+            const curY = Math.max(vRect.top, Math.min(e.clientY - rect.top, vRect.top + vRect.height));
+
+            const x = Math.min(startX, curX);
+            const y = Math.min(startY, curY);
+            const w = Math.abs(curX - startX);
+            const h = Math.abs(curY - startY);
+
+            boxEl.style.left = x + 'px';
+            boxEl.style.top = y + 'px';
+            boxEl.style.width = w + 'px';
+            boxEl.style.height = h + 'px';
+        });
+
+        window.addEventListener('mouseup', () => {
+            if (!isDragging) return;
+            isDragging = false;
+
+            const vRect = getVideoDisplayedRect(videoEl);
+            const boxLeft = parseFloat(boxEl.style.left);
+            const boxTop = parseFloat(boxEl.style.top);
+            const boxW = parseFloat(boxEl.style.width);
+            const boxH = parseFloat(boxEl.style.height);
+
+            if (boxW < 15 || boxH < 15) {
+                boxEl.style.display = 'none';
+                onRoiChange(null);
+                return;
+            }
+
+            let realX = Math.round((boxLeft - vRect.left) * vRect.scaleX);
+            let realY = Math.round((boxTop - vRect.top) * vRect.scaleY);
+            let realW = Math.round(boxW * vRect.scaleX);
+            let realH = Math.round(boxH * vRect.scaleY);
+
+            realX = Math.max(0, Math.min(realX, videoEl.videoWidth - 2));
+            realY = Math.max(0, Math.min(realY, videoEl.videoHeight - 2));
+            realW = Math.max(2, Math.min(realW, videoEl.videoWidth - realX));
+            realH = Math.max(2, Math.min(realH, videoEl.videoHeight - realY));
+
+            if (realW % 2 !== 0) realW -= 1;
+            if (realH % 2 !== 0) realH -= 1;
+
+            onRoiChange({ x: realX, y: realY, w: realW, h: realH });
+        });
+    }
+
+    // ==========================================
+    // 1. 螢幕錄影邏輯 (支援預覽框選 ROI)
+    // ==========================================
+    const selectScreenBtn = document.getElementById('selectScreenBtn');
+    const startRecordBtn = document.getElementById('startRecordBtn');
+    const stopBtn = document.getElementById('stopBtn');
+    const cancelPreviewBtn = document.getElementById('cancelPreviewBtn');
+    const ratioSelect = document.getElementById('ratioSelect');
+    const qualitySelect = document.getElementById('qualitySelect');
+    const previewWrapper = document.getElementById('previewWrapper');
+    const preview = document.getElementById('preview');
+    const recRoiOverlay = document.getElementById('recRoiOverlay');
+    const recRoiBox = document.getElementById('recRoiBox');
+    const recRoiBar = document.getElementById('recRoiBar');
+    const recRoiText = document.getElementById('recRoiText');
+    const resetRecRoiBtn = document.getElementById('resetRecRoiBtn');
+    const statusMsg = document.getElementById('statusMsg');
+    const recCanvas = document.getElementById('recCanvas');
+    const recCtx = recCanvas.getContext('2d');
+
+    let mediaRecorder;
+    let recordedChunks = [];
+    let displayStream = null;
+    let activeRecordStream = null;
+    let recRoi = null;
+    let recDrawTimer = null;
+
+    setupRoiSelector(recRoiOverlay, recRoiBox, preview, (roi) => {
+        recRoi = roi;
+        updateRecRoiDisplay();
+    });
+
+    function updateRecRoiDisplay() {
+        if (!recRoi) {
+            recRoiBox.style.display = 'none';
+            const vw = preview.videoWidth || 0;
+            const vh = preview.videoHeight || 0;
+            recRoiText.textContent = vw ? `全畫面 (${vw} x ${vh} px)` : '全畫面 (未裁切)';
+        } else {
+            recRoiText.textContent = `X:${recRoi.x}, Y:${recRoi.y} | 尺寸: ${recRoi.w} x ${recRoi.h} px`;
+        }
+    }
+
+    resetRecRoiBtn.addEventListener('click', () => {
+        recRoi = null;
+        updateRecRoiDisplay();
+    });
+
+    selectScreenBtn.addEventListener('click', async () => {
+        const ratio = parseFloat(ratioSelect.value);
+        const videoConstraints = { frameRate: { ideal: 60 } };
+        if (ratio > 0) {
+            videoConstraints.aspectRatio = ratio;
+        }
+
+        try {
+            displayStream = await navigator.mediaDevices.getDisplayMedia({
+                video: videoConstraints,
+                audio: false
+            });
+
+            preview.srcObject = displayStream;
+            previewWrapper.classList.remove('hidden');
+            recRoiBar.classList.remove('hidden');
+            recRoiOverlay.style.pointerEvents = 'auto';
+
+            preview.onloadedmetadata = () => {
+                recRoi = null;
+                updateRecRoiDisplay();
+            };
+
+            displayStream.getVideoTracks()[0].onended = () => {
+                if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                    stopRecording();
+                } else {
+                    cleanupRecordingPreview();
+                }
+            };
+
+            selectScreenBtn.classList.add('hidden');
+            startRecordBtn.classList.remove('hidden');
+            cancelPreviewBtn.classList.remove('hidden');
+
+            statusMsg.textContent = "請在上方預覽畫面拖曳滑鼠框選要錄影的範圍 (ROI)，或直接點擊「2. 開始錄影」錄製全畫面。";
+            statusMsg.style.color = "var(--primary)";
+        } catch (err) {
+            console.error("Error: " + err);
+            statusMsg.textContent = "無法取得畫面，請確保您已授權螢幕存取。";
+            statusMsg.style.color = "var(--danger)";
+        }
+    });
+
+    cancelPreviewBtn.addEventListener('click', () => {
+        cleanupRecordingPreview();
+        statusMsg.textContent = "已取消預覽，請重新選擇畫面。";
+        statusMsg.style.color = "#64748b";
+    });
+
+    function cleanupRecordingPreview() {
+        if (recDrawTimer) {
+            clearInterval(recDrawTimer);
+            recDrawTimer = null;
+        }
+        if (displayStream) {
+            displayStream.getTracks().forEach(track => track.stop());
+            displayStream = null;
+        }
+        preview.srcObject = null;
+        previewWrapper.classList.add('hidden');
+        recRoiBar.classList.add('hidden');
+        selectScreenBtn.classList.remove('hidden');
+        startRecordBtn.classList.add('hidden');
+        stopBtn.classList.add('hidden');
+        cancelPreviewBtn.classList.add('hidden');
+        recRoi = null;
+        recRoiBox.style.display = 'none';
+    }
+
+    startRecordBtn.addEventListener('click', () => {
+        if (!displayStream) return;
+
+        const mimeType = getSupportedMimeType();
+        if (!mimeType) {
+            alert("您的瀏覽器不支援 MediaRecorder API，無法錄製。");
+            return;
+        }
+
+        const bits = parseInt(qualitySelect.value);
+        recRoiOverlay.style.pointerEvents = 'none';
+        resetRecRoiBtn.disabled = true;
+
+        if (recRoi) {
+            recCanvas.width = recRoi.w;
+            recCanvas.height = recRoi.h;
+
+            const drawFrame = () => {
+                if (preview.readyState >= 2) {
+                    recCtx.drawImage(
+                        preview,
+                        recRoi.x, recRoi.y, recRoi.w, recRoi.h,
+                        0, 0, recRoi.w, recRoi.h
+                    );
+                }
+            };
+            drawFrame();
+            recDrawTimer = setInterval(drawFrame, 1000 / 30);
+            activeRecordStream = recCanvas.captureStream(30);
+        } else {
+            activeRecordStream = displayStream;
+        }
+
+        mediaRecorder = new MediaRecorder(activeRecordStream, {
+            mimeType,
+            videoBitsPerSecond: bits
+        });
+
+        recordedChunks = [];
+        mediaRecorder.ondataavailable = (event) => {
+            if (event.data.size > 0) {
+                recordedChunks.push(event.data);
+            }
+        };
+
+        mediaRecorder.onstop = saveRecording;
+        mediaRecorder.start();
+
+        startRecordBtn.classList.add('hidden');
+        cancelPreviewBtn.classList.add('hidden');
+        stopBtn.classList.remove('hidden');
+
+        const roiDesc = recRoi ? `ROI 區域 (${recRoi.w}x${recRoi.h})` : `全畫面`;
+        statusMsg.textContent = `正在錄影中 [${roiDesc}]... (${mimeType})`;
+        statusMsg.style.color = "var(--danger)";
+    });
+
+    stopBtn.addEventListener('click', stopRecording);
+
+    function stopRecording() {
+        if (recDrawTimer) {
+            clearInterval(recDrawTimer);
+            recDrawTimer = null;
+        }
+        if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+            mediaRecorder.stop();
+        }
+        if (displayStream) {
+            displayStream.getTracks().forEach(track => track.stop());
+            displayStream = null;
+        }
+        resetRecRoiBtn.disabled = false;
+        cleanupRecordingPreview();
+        statusMsg.textContent = "正在處理檔案...";
+        statusMsg.style.color = "var(--text)";
+    }
+
+    function saveRecording() {
+        const blob = new Blob(recordedChunks, {
+            type: mediaRecorder.mimeType
+        });
+        
+        const isMp4 = mediaRecorder.mimeType.includes("mp4");
+        const ext = isMp4 ? "mp4" : "webm";
+        
+        downloadBlob(blob, ext, "screen_record");
+        statusMsg.textContent = "影片已儲存！請檢查下載資料夾。";
+        statusMsg.style.color = "var(--success)";
+    }
+
+    // ==========================================
+    // 2. 影片編輯邏輯 (Editor Logic)
+    // ==========================================
+    const fileInput = document.getElementById('fileInput');
+    const editPlayer = document.getElementById('editPlayer');
+    const editorControls = document.getElementById('editorControls');
+    const trimBtn = document.getElementById('trimBtn');
+    const startTimeIn = document.getElementById('startTime');
+    const endTimeIn = document.getElementById('endTime');
+    const speedSelect = document.getElementById('speedSelect');
+    const editStatus = document.getElementById('editStatus');
+    const progressBar = document.getElementById('progressBar');
+    const progressFill = document.getElementById('progressFill');
+    const canvas = document.getElementById('processCanvas');
+    const ctx = canvas.getContext('2d');
+
+    fileInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            const url = URL.createObjectURL(file);
+            editPlayer.src = url;
+            editPlayer.classList.remove('hidden');
+            editorControls.classList.remove('hidden');
+            editPlayer.playbackRate = 1.0; 
+            
+            editPlayer.onloadedmetadata = () => {
+                endTimeIn.value = editPlayer.duration.toFixed(1);
+                startTimeIn.max = editPlayer.duration;
+                endTimeIn.max = editPlayer.duration;
+            };
+        }
+    });
+
+    trimBtn.addEventListener('click', () => {
+        const start = parseFloat(startTimeIn.value);
+        const end = parseFloat(endTimeIn.value);
+        const speed = parseFloat(speedSelect.value);
+        
+        if (start >= end) {
+            alert("錯誤：結束時間必須晚於開始時間");
+            return;
+        }
+        
+        processVideo(start, end, speed);
+    });
+
+    function processVideo(start, end, speed) {
+        trimBtn.disabled = true;
+        editStatus.textContent = `正在處理中 (速度 ${speed}x)... 請勿切換分頁以避免中斷`;
+        progressBar.style.display = 'block';
+        
+        canvas.width = editPlayer.videoWidth;
+        canvas.height = editPlayer.videoHeight;
+
+        const stream = canvas.captureStream(30); 
+        const mimeType = getSupportedMimeType();
+        
+        // 使用上方「錄影區」所選的畫質來輸出
+        const outputBits = parseInt(qualitySelect.value);
+
+        const recorder = new MediaRecorder(stream, { 
+            mimeType, 
+            videoBitsPerSecond: outputBits
+        });
+        
+        const chunks = [];
+        recorder.ondataavailable = e => {
+            if (e.data.size > 0) chunks.push(e.data);
+        };
+
+        recorder.onstop = () => {
+            const blob = new Blob(chunks, { type: mimeType });
+            const isMp4 = mimeType.includes("mp4");
+            downloadBlob(blob, isMp4 ? "mp4" : "webm", "edited_video");
+            
+            trimBtn.disabled = false;
+            editStatus.textContent = "處理完成！影片已下載。";
+            editStatus.style.color = "var(--success)";
+            progressBar.style.display = 'none';
+            progressFill.style.width = "0%";
+            
+            editPlayer.currentTime = start;
+            editPlayer.volume = 1; 
+            editPlayer.playbackRate = 1.0;
+        };
+
+        editPlayer.currentTime = start;
+        editPlayer.volume = 0; 
+        editPlayer.playbackRate = speed; 
+        
+        recorder.start();
+        
+        editPlayer.play().then(() => {
+            function step() {
+                if (editPlayer.currentTime >= end || editPlayer.ended) {
+                    recorder.stop();
+                    editPlayer.pause();
+                    return;
+                }
+                
+                ctx.drawImage(editPlayer, 0, 0, canvas.width, canvas.height);
+                
+                const totalDuration = end - start;
+                const currentProgress = editPlayer.currentTime - start;
+                const pct = Math.min((currentProgress / totalDuration) * 100, 100);
+                progressFill.style.width = pct + "%";
+
+                requestAnimationFrame(step);
+            }
+            step();
+        }).catch(err => {
+            console.error("Playback failed", err);
+            editStatus.textContent = "處理失敗：影片無法播放";
+            trimBtn.disabled = false;
+        });
+    }
+
+    // ==========================================
+    // 3. MP4 → GIF 轉換器邏輯 (MP4 to GIF Logic)
+    // ==========================================
+    const gifDropzone = document.getElementById('gifDropzone');
+    const gifFileInput = document.getElementById('gifFileInput');
+    const gifVideoPreview = document.getElementById('gifVideoPreview');
+    const gifVideoMeta = document.getElementById('gifVideoMeta');
+    const gifOptionsCard = document.getElementById('gifOptionsCard');
+    const gifResultCard = document.getElementById('gifResultCard');
+
+    const gifTrimStart = document.getElementById('gifTrimStart');
+    const gifTrimEnd = document.getElementById('gifTrimEnd');
+    const gifTrimStartVal = document.getElementById('gifTrimStartVal');
+    const gifTrimEndVal = document.getElementById('gifTrimEndVal');
+    const gifFpsInput = document.getElementById('gifFpsInput');
+    const gifResPreset = document.getElementById('gifResPreset');
+    const gifCustomWidthWrap = document.getElementById('gifCustomWidthWrap');
+    const gifCustomWidth = document.getElementById('gifCustomWidth');
+    const gifQualitySelect = document.getElementById('gifQualitySelect');
+    const gifLoopCheckbox = document.getElementById('gifLoopCheckbox');
+    const gifEstimateMeta = document.getElementById('gifEstimateMeta');
+
+    const gifConvertBtn = document.getElementById('gifConvertBtn');
+    const gifProgressWrap = document.getElementById('gifProgressWrap');
+    const gifProgressBar = document.getElementById('gifProgressBar');
+    const gifProgressText = document.getElementById('gifProgressText');
+    const gifErrorBox = document.getElementById('gifErrorBox');
+
+    const previewGif = document.getElementById('previewGif');
+    const gifDownloadLink = document.getElementById('gifDownloadLink');
+    const gifFileSizeLabel = document.getElementById('gifFileSizeLabel');
+    const gifResultBadge = document.getElementById('gifResultBadge');
+    const gifResetBtn = document.getElementById('gifResetBtn');
+
+    let gifVideoFile = null;
+    let gifVideoDuration = 0;
+    let gifVideoWidth = 0;
+    let gifVideoHeight = 0;
+
+    gifDropzone.addEventListener('click', () => gifFileInput.click());
+    gifDropzone.addEventListener('dragover', e => { e.preventDefault(); gifDropzone.classList.add('drag'); });
+    gifDropzone.addEventListener('dragleave', () => gifDropzone.classList.remove('drag'));
+    gifDropzone.addEventListener('drop', e => {
+        e.preventDefault();
+        gifDropzone.classList.remove('drag');
+        if (e.dataTransfer.files.length) loadGifVideo(e.dataTransfer.files[0]);
+    });
+    gifFileInput.addEventListener('change', e => {
+        if (e.target.files.length) loadGifVideo(e.target.files[0]);
+    });
+
+    function loadGifVideo(file) {
+        hideGifError();
+        gifVideoFile = file;
+        const url = URL.createObjectURL(file);
+        gifVideoPreview.src = url;
+        gifVideoPreview.style.display = 'block';
+
+        gifVideoPreview.onloadedmetadata = () => {
+            gifVideoDuration = gifVideoPreview.duration;
+            gifVideoWidth = gifVideoPreview.videoWidth;
+            gifVideoHeight = gifVideoPreview.videoHeight;
+
+            gifVideoMeta.textContent = `${file.name} · ${gifVideoWidth}×${gifVideoHeight} · ${gifVideoDuration.toFixed(1)}s`;
+
+            gifTrimStart.min = 0; gifTrimStart.max = gifVideoDuration; gifTrimStart.step = 0.1; gifTrimStart.value = 0;
+            gifTrimEnd.min = 0; gifTrimEnd.max = gifVideoDuration; gifTrimEnd.step = 0.1; gifTrimEnd.value = gifVideoDuration;
+            gifTrimStartVal.textContent = '0.0s';
+            gifTrimEndVal.textContent = gifVideoDuration.toFixed(1) + 's';
+
+            gifOptionsCard.style.display = 'block';
+            gifResultCard.style.display = 'none';
+            updateGifEstimate();
+        };
+    }
+
+    gifTrimStart.addEventListener('input', () => {
+        if (parseFloat(gifTrimStart.value) >= parseFloat(gifTrimEnd.value)) {
+            gifTrimStart.value = Math.max(0, parseFloat(gifTrimEnd.value) - 0.1);
+        }
+        gifTrimStartVal.textContent = parseFloat(gifTrimStart.value).toFixed(1) + 's';
+        updateGifEstimate();
+    });
+
+    gifTrimEnd.addEventListener('input', () => {
+        if (parseFloat(gifTrimEnd.value) <= parseFloat(gifTrimStart.value)) {
+            gifTrimEnd.value = Math.min(gifVideoDuration, parseFloat(gifTrimStart.value) + 0.1);
+        }
+        gifTrimEndVal.textContent = parseFloat(gifTrimEnd.value).toFixed(1) + 's';
+        updateGifEstimate();
+    });
+
+    gifFpsInput.addEventListener('input', updateGifEstimate);
+    gifResPreset.addEventListener('change', () => {
+        gifCustomWidthWrap.style.display = gifResPreset.value === 'custom' ? 'block' : 'none';
+        updateGifEstimate();
+    });
+    gifCustomWidth.addEventListener('input', updateGifEstimate);
+
+    function getGifTargetDimensions() {
+        let scale;
+        if (gifResPreset.value === 'custom') {
+            const w = Math.max(16, parseInt(gifCustomWidth.value) || gifVideoWidth);
+            scale = w / gifVideoWidth;
+        } else {
+            scale = parseFloat(gifResPreset.value);
+        }
+        let w = Math.round(gifVideoWidth * scale);
+        let h = Math.round(gifVideoHeight * scale);
+        w = w % 2 === 0 ? w : w - 1;
+        h = h % 2 === 0 ? h : h - 1;
+        return { w: Math.max(2, w), h: Math.max(2, h) };
+    }
+
+    function updateGifEstimate() {
+        if (!gifVideoFile) return;
+        const start = parseFloat(gifTrimStart.value);
+        const end = parseFloat(gifTrimEnd.value);
+        const fps = Math.min(30, Math.max(1, parseInt(gifFpsInput.value) || 10));
+        const duration = Math.max(0, end - start);
+        const frameCount = Math.max(1, Math.round(duration * fps));
+        const { w, h } = getGifTargetDimensions();
+        gifEstimateMeta.textContent = `預估輸出：約 ${frameCount} 格影格 (${fps} fps)，尺寸 ${w}×${h}px，長度 ${duration.toFixed(1)} 秒。`;
+    }
+
+    function showGifError(msg) {
+        gifErrorBox.textContent = msg;
+        gifErrorBox.style.display = 'block';
+    }
+    function hideGifError() {
+        gifErrorBox.style.display = 'none';
+    }
+
+    gifConvertBtn.addEventListener('click', async () => {
+        if (!gifVideoFile) return;
+        hideGifError();
+        gifConvertBtn.disabled = true;
+        gifProgressWrap.style.display = 'block';
+        gifProgressBar.style.width = '0%';
+        gifProgressText.textContent = '正在擷取影格 (Extracting frames)…';
+
+        try {
+            await convertToGif();
+        } catch (err) {
+            console.error(err);
+            showGifError('轉換失敗 (Conversion failed): ' + (err && err.message ? err.message : err));
+        } finally {
+            gifConvertBtn.disabled = false;
+        }
+    });
+
+    let cachedWorkerBlobUrl = null;
+    async function getWorkerScriptUrl() {
+        if (cachedWorkerBlobUrl) return cachedWorkerBlobUrl;
+        const resp = await fetch('https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.worker.js');
+        if (!resp.ok) throw new Error('Could not fetch gif.worker.js (HTTP ' + resp.status + ')');
+        const text = await resp.text();
+        const blob = new Blob([text], { type: 'application/javascript' });
+        cachedWorkerBlobUrl = URL.createObjectURL(blob);
+        return cachedWorkerBlobUrl;
+    }
+
+    async function convertToGif() {
+        const start = parseFloat(gifTrimStart.value);
+        const end = parseFloat(gifTrimEnd.value);
+        const fps = Math.min(30, Math.max(1, parseInt(gifFpsInput.value) || 10));
+        const quality = parseInt(gifQualitySelect.value);
+        const loop = gifLoopCheckbox.checked;
+        const { w, h } = getGifTargetDimensions();
+        const duration = end - start;
+        const frameInterval = 1 / fps;
+        const frameCount = Math.max(1, Math.round(duration * fps));
+
+        const gifCanvas = document.createElement('canvas');
+        gifCanvas.width = w;
+        gifCanvas.height = h;
+        const gifCtx = gifCanvas.getContext('2d');
+
+        gifProgressText.textContent = '正在載入編碼器 (Loading encoder)…';
+        const workerScriptUrl = await getWorkerScriptUrl();
+
+        const gif = new GIF({
+            workers: 2,
+            quality: quality,
+            width: w,
+            height: h,
+            workerScript: workerScriptUrl,
+            repeat: loop ? 0 : -1
+        });
+
+        const seeker = document.createElement('video');
+        seeker.src = gifVideoPreview.src;
+        seeker.muted = true;
+        seeker.playsInline = true;
+        await new Promise((resolve, reject) => {
+            seeker.onloadedmetadata = resolve;
+            seeker.onerror = () => reject(new Error('Could not load video for frame extraction'));
+        });
+
+        for (let i = 0; i < frameCount; i++) {
+            const t = start + i * frameInterval;
+            await seekTo(seeker, Math.min(t, gifVideoDuration - 0.01));
+            gifCtx.drawImage(seeker, 0, 0, w, h);
+            gif.addFrame(gifCtx, { copy: true, delay: Math.round(1000 / fps) });
+
+            gifProgressBar.style.width = Math.round(((i + 1) / frameCount) * 45) + '%';
+            gifProgressText.textContent = `正在擷取影格 ${i + 1} / ${frameCount}…`;
+            await new Promise(r => setTimeout(r, 0));
+        }
+
+        gifProgressText.textContent = '正在編碼 GIF (Encoding GIF)…';
+
+        gif.on('progress', p => {
+            const pct = 45 + Math.round(p * 55);
+            gifProgressBar.style.width = pct + '%';
+            gifProgressText.textContent = `正在編碼 GIF… ${Math.round(p * 100)}%`;
+        });
+
+        gif.on('finished', blob => {
+            const url = URL.createObjectURL(blob);
+            previewGif.src = url;
+            gifDownloadLink.href = url;
+            const baseName = (gifVideoFile.name || 'video').replace(/\.[^/.]+$/, '');
+            gifDownloadLink.download = `${baseName}.gif`;
+            gifFileSizeLabel.textContent = formatBytes(blob.size);
+            gifResultBadge.textContent = `${w}×${h} · ${fps}fps`;
+            gifProgressWrap.style.display = 'none';
+            gifResultCard.style.display = 'block';
+            gifResultCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+
+        gif.render();
+    }
+
+    function seekTo(video, time) {
+        return new Promise((resolve, reject) => {
+            function onSeeked() {
+                video.removeEventListener('seeked', onSeeked);
+                video.removeEventListener('error', onErr);
+                resolve();
+            }
+            function onErr() {
+                video.removeEventListener('seeked', onSeeked);
+                video.removeEventListener('error', onErr);
+                reject(new Error('Seek failed'));
+            }
+            video.addEventListener('seeked', onSeeked);
+            video.addEventListener('error', onErr);
+            video.currentTime = time;
+        });
+    }
+
+    function formatBytes(bytes) {
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+        return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+    }
+
+    gifResetBtn.addEventListener('click', () => {
+        gifResultCard.style.display = 'none';
+        gifOptionsCard.style.display = 'block';
+    });
+</script>
+
+</body>
+</html>
